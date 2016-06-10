@@ -1,0 +1,111 @@
+#!/bin/bash
+# ############################################# #
+#
+# pipdate
+# by just-another-user
+#
+# Description:
+# Update all of python's packages for both
+# version 2 and 3 of Python.
+#
+# Changes:
+#   - Fixed: Fixed behavior when there are no packages to update.
+#   - Added: Shows all packages to be updated, before updating.
+#	- Fixed 2>/dev/null
+#	- Update pip before listing.
+#
+# ############################################# #
+
+py2=$(which python2)
+py3=$(which python3)
+pip2=$(which pip2)
+pip3=$(which pip3)
+pip_list2='/tmp/pl2'
+pip_list3='/tmp/pl3'
+
+clr='\033[0;33m'
+clr2='\033[0;36m'
+noclr='\033[0m'
+
+# General info
+echo -e ${clr}[PIPDATE2]${noclr} Found ${clr2}python2${noclr} at $py2
+echo -e ${clr}[PIPDATE2]${noclr} Found ${clr2}pip2${noclr} at $pip2
+echo -e ${clr}[PIPDATE3]${noclr} Found ${clr2}python3${noclr} at $py3
+echo -e ${clr}[PIPDATE3]${noclr} Found ${clr2}pip3${noclr} at $pip3
+echo
+
+# Updating pip
+echo [PIPDATE2] Updating pip2
+sudo -i $pip2 install -U --force-reinstall pip 2>/dev/null 1>$output
+if [ "$output" == *"Requirement already up-to-date"* ]
+then
+	echo -e ${clr}[PIPDATE2]${noclr} ${clr2}pip2${noclr} is already up to date.
+fi
+echo [PIPDATE3] Updating pip3
+sudo -i $pip3 install -U --force-reinstall pip 2>/dev/null 1>$output
+if [ "$output" == *"Requirement already up-to-date"* ]
+then
+	echo -e ${clr}[PIPDATE3]${noclr} ${clr2}pip3${noclr} is already up to date.
+fi
+
+
+# Create a list of outdated Python2 packages (stripping version info)
+echo -e ${clr}[PIPDATE2]${noclr} Generating list of outdated Python 2 packages.
+sudo -i $pip2 list --outdated --allow-all-external 2>/dev/null | sed -r 's/(\b\w+\b) (.*)/\1/' > $pip_list2
+
+# Iterate over the list and update each package
+if [ -z `cat $pip_list2` ]
+then
+	echo -e ${clr}[PIPDATE2]${noclr} No outdated packages found.
+else
+    echo -e ${clr}[PIPDATE2]${noclr} Preparing to update the following packages:
+    echo -e ${clr}[PIPDATE2]${noclr} ${clr2}$(cat $pip_list2)${noclr}
+    echo -e ${clr}[PIPDATE2]${noclr}
+	echo -e ${clr}[PIPDATE2]${noclr} Iterating over list of packages to be upgraded:
+	for pkg in $(cat $pip_list2)
+	do
+		echo -e ${clr}[PIPDATE2]${noclr} Upgrading ${clr2}$pkg${noclr}...
+		sudo -i $pip3 install --upgrade --allow-all-external --force-reinstall $pkg 2>/dev/null 1>$output
+		if [ "$output" == *"Requirement already up-to-date"* ]
+		then
+			echo -e ${clr}[PIPDATE2]${noclr} ${clr2}$pkg${noclr} already up to date.
+		elif [ -z $? ]
+		then
+			echo -e ${clr}[PIPDATE2]${noclr} Upgraded ${clr2}$pkg${noclr} successfully.
+		fi
+	done
+fi
+
+# Create a list of outdated Python3 packages (stripping version info)
+echo
+echo -e ${clr}[PIPDATE3]${noclr} Generating list of outdated Python 3 packages.
+sudo -i $pip3 list --outdated --allow-all-external 2>/dev/null | sed -r 's/(\b\w+\b) (.*)/\1/' > $pip_list3
+
+# Iterate over the list and update each package
+if [ -z `cat $pip_list3` ]
+then
+	echo -e ${clr}[PIPDATE3]${noclr} No outdated packages found.
+else
+    echo -e ${clr}[PIPDATE3]${noclr} Preparing to update the following packages:
+    echo -e ${clr}[PIPDATE3]${noclr} ${clr2}$(cat $pip_list3)${noclr}
+    echo -e ${clr}[PIPDATE3]${noclr} 
+	echo -e ${clr}[PIPDATE3]${noclr} Iterating over list of packages to be upgraded:
+	for pkg in $(cat $pip_list3)
+	do
+		echo -e ${clr}[PIPDATE3]${noclr} Upgrading ${clr2}$pkg${noclr}...
+		sudo -i $pip3 install --upgrade --allow-all-external --force-reinstall $pkg 2>/dev/null 1>$output
+		if [ "$output" == *"Requirement already up-to-date"* ]
+		then
+			echo -e ${clr}[PIPDATE3]${noclr} ${clr2}$pkg${noclr} already up to date.
+		elif [ -z $? ]
+		then
+			echo -e ${clr}[PIPDATE3]${noclr} Upgraded ${clr2}$pkg${noclr} successfully.
+		fi
+	done
+fi
+
+# Clean up temp files
+echo
+echo -e ${clr}[PIPDATE ]${noclr} Cleaning up...
+rm $pip_list2 $pip_list3
+echo -e ${clr}[PIPDATE ]${noclr} All done.

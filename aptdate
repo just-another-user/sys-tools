@@ -1,0 +1,30 @@
+#!/bin/bash
+###########################################
+#
+# aptdate
+# by just-another-user
+#
+# Description:
+# Update system using apt-get
+#
+###########################################
+
+clr='\033[0;33m'
+clr2='\033[0;36m'
+noclr='\033[0m'
+
+echo -e ${clr}[APTDATE]${noclr} ${clr2}Removing cache${noclr}
+sudo rm -rf /var/lib/apt/lists/*
+sudo apt-get clean
+
+echo -e ${clr}[APTDATE]${noclr} ${clr2}Updating repositories${noclr}
+sudo apt-get -y update
+
+echo -e ${clr}[APTDATE]${noclr} ${clr2}Upgrading available packages${noclr}
+sudo apt-get -y dist-upgrade
+
+echo -e ${clr}[APTDATE]${noclr} ${clr2}Fixing unmet dependencies${noclr}
+sudo apt-get install -f -y
+
+echo -e ${clr}[APTDATE]${noclr} ${clr2}Cleaning up...${noclr}
+sudo apt-get -y autoremove

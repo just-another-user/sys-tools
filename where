@@ -1,0 +1,29 @@
+#!/bin/bash
+###########################################################
+#
+# where
+# by just-another-user
+#
+# Description:
+# Find the location of a link file's source.
+#
+# Changes:
+#   - Parse symbolic links all the way to the source.
+#
+###########################################################
+
+#if no argument is passed
+if [ -z $1 ]; then
+    echo "[where] Find a file's location, including links' origin."
+    echo "[where] Usage: where <filename>"
+# if file doesn't exist
+elif [ -z `which $1` ]; then
+    echo "[where] Cannot find" $1
+# if file is a symbolic link - follow it
+elif [ -L `which $1` ]; then
+    ls -l `which $1` | awk '{print $11}' | xargs where
+# if it's a file then just print its location
+elif [ -e `which $1` ]; then
+    ls -l `which $1` | awk '{print $9}'
+fi
+

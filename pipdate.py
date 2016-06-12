@@ -14,6 +14,7 @@ Basic use:
 
 
 Changes:
+  - Fixed: Calling logging before initializing a logger. Such a silly mistake.
   - Improved: Normalized color use.
   - Added: Colors to output.
   - Improved: Modularized the update process: updates a single package at the time and control the output from
@@ -30,7 +31,6 @@ TODO:
   - Fix: Colors aren't displayed in Windows.
   - Fix: Doesn't handle more than 1 Pip per Python version on the same machine.
 """
-
 import argparse
 import logging
 import os
@@ -38,7 +38,7 @@ import string
 import subprocess
 import sys
 
-__ver__ = '1.0'
+__ver__ = '1.01'
 
 # **********************************************************************
 # Initiated global vars and logger.
@@ -254,7 +254,6 @@ def pipdate(arguments):
     :return: 0 if successful; 1 otherwise
     :rtype: Integer
     """
-    logging.info("pipdate v.{}".format(__ver__))
     loglevels = {'info': logging.INFO, 'debug': logging.DEBUG, 'warning': logging.WARNING, 'warn': logging.WARN,
                  'error': logging.ERROR, 'critical': logging.CRITICAL}
 
@@ -267,6 +266,8 @@ def pipdate(arguments):
             COLOR.format(BOLD, BLUE), COLOR.format(NORMAL, WHITE)), datefmt="%Y-%m-%d %H:%M:%S",
             level=loglevels[str(arguments.loglevel).lower()]
             if arguments.loglevel and str(arguments.loglevel).lower() in loglevels else logging.INFO)
+
+    logging.info("pipdate v.{}".format(__ver__))
 
     # User specified packages for update.
     packages = list(arguments.packages) if arguments.packages else None

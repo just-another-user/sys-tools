@@ -14,6 +14,8 @@ Basic use:
 
 
 Changes:
+  - Improved: When printing the list of packages to update, output changed to without quotes or commas, so user would
+              be able to copy-paste list of packages.
   - Fixed: Calling logging before initializing a logger. Such a silly mistake.
   - Improved: Normalized color use.
   - Added: Colors to output.
@@ -38,7 +40,7 @@ import string
 import subprocess
 import sys
 
-__ver__ = '1.01'
+__ver__ = '1.02'
 
 # **********************************************************************
 # Initiated global vars and logger.
@@ -211,7 +213,7 @@ def batch_update_packages(pip, pkg_list):
         return False
     logging.info("Updating the following {} {} package{}: {}".format(
         len(pkg_list), "pip2" if "pip2" in pip else "pip3", "s" if len(pkg_list) > 1 else "",
-        str(pkg_list).strip('[]')))
+        " ".join(pkg_list)))
     for pkg in pkg_list:
         logging.info("Updating Python{} package {}".format(pip[-5] if 'nt' in os.name else pip[-1], pkg))
         updated = update_package(pip, pkg)

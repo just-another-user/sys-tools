@@ -1,7 +1,6 @@
 """
 Pipdate, an automated pip updating tool.
 Author: just-another-user
-Last updated: 04/06/2016
 
 Description:
 Pipdate lists outdated Python packages for both Python 2 and 3, and updates them all!
@@ -10,10 +9,15 @@ by using the command line arguments (can be viewed by adding -h at execution.).
 
 Basic use:
     $sudo python pipdate.py
- Pipdate must have root/admin permission in order to run pip list and pip install.
+
+ * Pipdate must have root/admin permission in order to run pip list and pip install.
 
 
 Changes:
+  - Improved: Checking for root/admin permission on both *nix and Windows.
+  - Improved: Handling of edge cases in list_outdated_packages.
+  - Improved: Moved root check to its own function and replaced the 'print' statement with the version-agnostic
+              logging.error call.
   - Improved: When printing the list of packages to update, output changed to without quotes or commas, so user would
               be able to copy-paste list of packages.
   - Fixed: Calling logging before initializing a logger. Such a silly mistake.
@@ -31,7 +35,8 @@ Changes:
 
 TODO:
   - Fix: Colors aren't displayed in Windows.
-  - Fix: Doesn't handle more than 1 Pip per Python version on the same machine.
+  - Fix: Replace locate_pip with search for predetermined most common folders, such as X:\python?.? for Windows
+         and /usr/bin/python?.? for *nix.
 """
 import argparse
 import logging
@@ -39,15 +44,17 @@ import os
 import string
 import subprocess
 import sys
+import ctypes
+from string import ascii_uppercase
 
-__ver__ = '1.02'
+__ver__ = '1.04'
+__last_updated__ = '27/06/2016'
 
 # **********************************************************************
 # Initiated global vars and logger.
 PIP2 = ''
 PIP3 = ''
 
-# Acceptable python versions to look out for. Tested with 2.7+ and 3.4+
 PY_VERS = ["2.6", "2.7", "3.3", "3.4", "3.5"]
 
 # Set OS dependent paths
@@ -61,15 +68,24 @@ COLOR = '\x1b[{};{}m'
 # **********************************************************************
 
 
+def get_windows_drives():
+    available_drives = []
+    for drive_letter in ascii_uppercase:
+        if os.path.exists(drive_letter + ":"):
+            available_drives.append(drive_letter + ":")
+    return available_drives
+
+
+#
 def locate_pip(path=None, pip_version=None):
     """
     Update the locations of PIP2 and PIP3 in global scope according to findings in searched path.
     :param pip_version: The version of Python to update its packages. Can only be 2 or 3.
-    :type pip_version: Integer
+    :type pip_version: int
     :param path: Paths to pip2 and pip3 locations. Defaults to Python paths in environment PATH variable.
-    :type path: List
+    :type path: list
     :return: True if successfully got both pip2 and pip3; False if gotten only one or didn't get any of them.
-    :rtype: Boolean
+    :rtype: bool
     """
     global PIP2, PIP3  # Declare globals so they can be changed from within this function.
     if pip_version is None:  # If no specific pip version is requested, apply for both 2 and 3.
@@ -78,13 +94,12 @@ def locate_pip(path=None, pip_version=None):
     # Assign the appropriate search paths according to OS.
     nix = False
     if 'posix' in os.name:
-        # Running on *nix
-        nix = True
+        nix = True  # Running on *nix
     if nix and not path:
         path = NIX_PATH
     elif not path:
         # Running on Windows
-        path = [p for p in os.environ['PATH'].split(';') if 'python' in p.lower()]
+        path = [item for item in sys.path if 'python' in item]
         # Alternative way to search for python, in case it is not in the PATH environment variable.
         if not path:
             path = WIN_PATH
@@ -114,40 +129,42 @@ def find_file(name, path):
     """
     Find a file recursively in a given directory.
     :param name: Filename to find
-    :type name: String
+    :type name: str
     :param path: Path to search in.
-    :type path: String
-    :return: "full path" + "filename" if found; False otherwise.
-    :rtype: String or False
+    :type path: str
+    :return: "full path" + "filename" if found; Empty string otherwise.
+    :rtype: str
     """
     for root, dirs, files in os.walk(path):
         if name in files:
             return os.path.join(root, name)
-    return False
+    return ""
 
 
 def list_outdated_packages(pip):
     """
     Get a list of outdated pip packages.
     :param pip: Either PIP2 or PIP3. Should be a working path to a pip file.
-    :type pip: String
+    :type pip: str
     :return: A list of outdated python libs.
-    :rtype: List
+    :rtype: list
     """
     # Run the command and put output in tmp_packs
     logging.debug("Running {} list --outdated".format(pip))
-    tmp_packs = ""  # Initialize in case of an exception
     try:
         tmp_packs = subprocess.Popen([pip, "list", "--outdated"],
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
     except Exception as exp:
         logging.error("Exception encountered while listing {} outdated packages.\n{}".format(
             'pip2' if 'pip2' in pip else 'pip3', exp))
+        return []
     packs = []
     # Outdated packages come in the form of <package_name> <version>\n
     # So it is first split by newlines and then only the package name is used.
-    for item in tmp_packs.split('\n'):
-        packs.append(item.split(' ')[0])
+    if tmp_packs:
+        for item in tmp_packs.split('\n'):
+            if item.split():
+                packs.append(item.split()[0])
 
     # Remove all empty strings from list
     while "" in packs:
@@ -169,8 +186,6 @@ def update_package(pip, package):
         # logging.error("update_packages was called with a bad argument ({}). "
         #               "Only pip2 or pip3 (with full path) are accepted.".format(pip))
         return 2
-    # for pkg in pkg_list:
-        # logging.info("Updating Python {} package {}".format(pip[-5] if 'nt' in os.name else pip[-1], pkg))
     update_command = [pip, "install", "-U", package]
 
     if 'posix' in os.name:  # Add 'sudo -i' if running on a *nix system.
@@ -201,11 +216,11 @@ def update_package(pip, package):
 
 def batch_update_packages(pip, pkg_list):
     """
-        Update one or more pip packages.
-        :param pip: The path to pip executable.
-        :type pip: str
-        :param pkg_list: List of names of packages to update.
-        :type pkg_list: List
+    Update one or more pip packages.
+    :param pip: The path to pip executable.
+    :type pip: str
+    :param pkg_list: List of names of packages to update.
+    :type pkg_list: list
     """
     if pip not in [PIP2, PIP3]:
         logging.error("update_packages was called with a bad argument ({}). "
@@ -254,7 +269,7 @@ def pipdate(arguments):
     :param arguments: Arguments for pipdate.
     :type arguments: argparse.ArgumentParser
     :return: 0 if successful; 1 otherwise
-    :rtype: Integer
+    :rtype: int
     """
     loglevels = {'info': logging.INFO, 'debug': logging.DEBUG, 'warning': logging.WARNING, 'warn': logging.WARN,
                  'error': logging.ERROR, 'critical': logging.CRITICAL}
@@ -306,12 +321,25 @@ def pipdate(arguments):
     return 0
 
 
+def running_as_root():
+    """
+    Checks whether the script is running with root/admin privleges.
+    :return: True if running as root; False otherwise.
+    :rtype: bool
+    """
+    if ('nt' not in os.name and not os.getuid() == 0) or \
+            ('nt' in os.name and 'windll' in dir(ctypes) and not ctypes.windll.Shell32.IsUserAnAdmin() == 1):
+        logging.basicConfig(format="{}[PIPDATE] {}%(message)s".format(
+            COLOR.format(BOLD, BLUE), COLOR.format(NORMAL, WHITE)), datefmt="%Y-%m-%d %H:%M:%S",
+            level=logging.INFO)
+        logging.info("pipdate v.{}".format(__ver__))
+        logging.error("{}pipdate should be run with admin permissions. Try 'sudo python pipdate.py'".format(
+            COLOR.format(NORMAL, RED)))
+        return False
+    return True
+
+
 if __name__ == "__main__":
-    # Check for root
-    if 'nt' not in os.name and not os.getuid() == 0:
-        print "{}pipdate should be run with admin permissions. Try 'sudo python pipdate.py'".format(
-            COLOR.format(NORMAL, RED))
-        sys.exit(1)
-    else:
-        # Run Pipdate
+    if running_as_root():
         sys.exit(pipdate(create_argparser()))
+    sys.exit(1)

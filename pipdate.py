@@ -1,6 +1,6 @@
 """
-Pipdate, an automated pip updating tool.
-Author: just-another-user
+Pipdate, an automated pip updating tool,
+by just-another-user.
 
 Description:
 Pipdate lists outdated Python packages for both Python 2 and 3, and updates them all!
@@ -13,162 +13,113 @@ Basic use:
  * Pipdate must have root/admin permission in order to run pip list and pip install.
 
 
-Changes:
-  - Improved: Checking for root/admin permission on both *nix and Windows.
-  - Improved: Handling of edge cases in list_outdated_packages.
-  - Improved: Moved root check to its own function and replaced the 'print' statement with the version-agnostic
-              logging.error call.
-  - Improved: When printing the list of packages to update, output changed to without quotes or commas, so user would
-              be able to copy-paste list of packages.
-  - Fixed: Calling logging before initializing a logger. Such a silly mistake.
-  - Improved: Normalized color use.
-  - Added: Colors to output.
-  - Improved: Modularized the update process: updates a single package at the time and control the output from
-              the calling function. Now a hidden attempt to update pip before getting the packages is possible.
-              There will only be output regarding pip's update if it was successful.
-  - Improved: Normal output INFO level is just [PIPDATE] and message while DEBUG has full datetime + function name
-  - Added: Try to update pip version before updating packages.
-  - Removed: --allow-all-external was removed from list --outdated
-  - Fixed: Logging set according to convention.
-  - Improved: Same effect for less lines.
-  - Added: doc strings for all functions.
 
 TODO:
+  - Add: Support for other OSs.
+  - Add: Log level for output, and a command-line option to turn it on and show the output.
   - Fix: Colors aren't displayed in Windows.
-  - Fix: Replace locate_pip with search for predetermined most common folders, such as X:\python?.? for Windows
-         and /usr/bin/python?.? for *nix.
 """
 import argparse
 import logging
 import os
-import string
 import subprocess
 import sys
 import ctypes
 from string import ascii_uppercase
 
-__ver__ = '1.04'
-__last_updated__ = '27/06/2016'
+__version__ = '1.06'
+__last_updated__ = '05/09/2016'
+__author__ = 'just-another-user'
 
 # **********************************************************************
 # Initiated global vars and logger.
-PIP2 = ''
-PIP3 = ''
+nix = True if os.name == 'posix' else False
 
-PY_VERS = ["2.6", "2.7", "3.3", "3.4", "3.5"]
-
-# Set OS dependent paths
-NIX_PATH = [r'/usr/local/bin', r'/usr/local/sbin', r'/usr/bin', r'/usr/sbin']
-WIN_PATH = [r'{}:\Python{}'.format(drv, ver) for drv in list(string.ascii_uppercase)
-            for ver in PY_VERS]
-
+COLOR = '\x1b[{};{}m' if nix else ''
 BLACK, RED, GREEN, YELLOW, BLUE, PURPLE, CYAN, WHITE = range(30, 38)
 NORMAL, BOLD, UNDERLINED = range(3)
-COLOR = '\x1b[{};{}m'
 # **********************************************************************
 
 
-def get_windows_drives():
-    available_drives = []
-    for drive_letter in ascii_uppercase:
-        if os.path.exists(drive_letter + ":"):
-            available_drives.append(drive_letter + ":")
-    return available_drives
-
-
-#
-def locate_pip(path=None, pip_version=None):
+# noinspection PyTypeChecker
+def get_pip_paths():        # pragma: no cover
     """
-    Update the locations of PIP2 and PIP3 in global scope according to findings in searched path.
-    :param pip_version: The version of Python to update its packages. Can only be 2 or 3.
-    :type pip_version: int
-    :param path: Paths to pip2 and pip3 locations. Defaults to Python paths in environment PATH variable.
-    :type path: list
-    :return: True if successfully got both pip2 and pip3; False if gotten only one or didn't get any of them.
-    :rtype: bool
-    """
-    global PIP2, PIP3  # Declare globals so they can be changed from within this function.
-    if pip_version is None:  # If no specific pip version is requested, apply for both 2 and 3.
-        pip_version = [2, 3]
+    Try and locate available python installations which contain the pip script and return their locations.
 
-    # Assign the appropriate search paths according to OS.
-    nix = False
-    if 'posix' in os.name:
-        nix = True  # Running on *nix
-    if nix and not path:
-        path = NIX_PATH
-    elif not path:
-        # Running on Windows
-        path = [item for item in sys.path if 'python' in item]
-        # Alternative way to search for python, in case it is not in the PATH environment variable.
-        if not path:
-            path = WIN_PATH
-    pip2_found = False
-    pip3_found = False
-    file2 = 'pip2.exe' if not nix else 'pip2'
-    file3 = 'pip3.exe' if not nix else 'pip3'
-    for a_path in path:  # Traverse paths.
-        if not PIP2:
-            pip2 = '' if 2 not in pip_version else find_file(file2, a_path)
-        if not PIP3:
-            pip3 = '' if 3 not in pip_version else find_file(file3, a_path)
-        if pip2 and not pip2_found:
-            PIP2 = pip2
-            logging.debug("Found pip2 at {}".format(pip2))
-            pip2_found = True
-        if pip3 and not pip3_found:
-            PIP3 = pip3
-            logging.debug("Found pip3 at {}".format(pip3))
-            pip3_found = True
-        if PIP2 and PIP3:
-            return True
-    return False
-
-
-def find_file(name, path):
+    :return:
+    :rtype:
     """
-    Find a file recursively in a given directory.
-    :param name: Filename to find
-    :type name: str
-    :param path: Path to search in.
-    :type path: str
-    :return: "full path" + "filename" if found; Empty string otherwise.
-    :rtype: str
-    """
-    for root, dirs, files in os.walk(path):
-        if name in files:
-            return os.path.join(root, name)
-    return ""
+    # Possible locations for pip script, with os.sep at the end.
+    known_nix_paths = ['/usr/bin/', '/usr/local/bin/']
+
+    pip_paths = []
+    if nix:
+        for path in known_nix_paths:
+            _, _, files = os.walk(path).next()
+            # Get all files which start with pip.
+            pip_paths += [path + _file for _file in files if _file.lower().startswith('pip') and
+                          os.path.exists(path + _file)]
+            # In *nix systems there might be a couple of files referencing the same files:
+            # e.g. 'pip2', 'pip2.7', 'pip', etc...
+            # In order to avoid these duplicates, only keep the unique files (i.e. 'pip2.7' and not the rest).
+            for pip in pip_paths[::]:  # Iterate over a *copy* of the list so that it could be manipulated as well.
+                found = False
+                for _pip in pip_paths:
+                    if found:
+                        break
+                    if not pip == _pip and pip.split('/')[-1] in _pip.split('/')[-1]:
+                        pip_paths.remove(pip)
+                        found = True
+
+    elif 'nt' in os.name:
+        try:
+            # First, add all available drives on the system to the available locations.
+            availble_locations = [drive + ":\\" for drive in list(ascii_uppercase) if os.path.exists(drive + ':\\')]
+
+            # Then, add Program Files folders as possible locations:
+            pf = ["Program Files\\", "Program Files (x86)\\"]
+            availble_locations += [drive + _pf for drive in availble_locations for _pf in pf if
+                                   os.path.exists(drive + _pf)]
+
+            # Search all of the available locations for folders with 'python' in their name, and see if they contain the
+            # pip script in the expected subfolder.
+            pip_paths = []
+            for path in availble_locations:
+                _, dirs, _ = os.walk(path).next()  # Get only the folders directly under the searched path.
+                for _dir in dirs:
+                    if 'python' in _dir.lower() and os.path.isfile(path + _dir + "\\Scripts\pip.exe"):
+                        pip_paths.append(path + _dir + "\\Scripts\pip.exe")
+        except:
+            pass
+
+    # More os support <should come here>.
+
+    return pip_paths
 
 
 def list_outdated_packages(pip):
     """
     Get a list of outdated pip packages.
-    :param pip: Either PIP2 or PIP3. Should be a working path to a pip file.
+    :param pip: Path to the pip script.
     :type pip: str
-    :return: A list of outdated python libs.
+    :return: A list of outdated python packages.
     :rtype: list
     """
     # Run the command and put output in tmp_packs
     logging.debug("Running {} list --outdated".format(pip))
     try:
-        tmp_packs = subprocess.Popen([pip, "list", "--outdated"],
-                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
+        outdated_packages = subprocess.Popen([pip, "list", "--outdated"],
+                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
     except Exception as exp:
-        logging.error("Exception encountered while listing {} outdated packages.\n{}".format(
-            'pip2' if 'pip2' in pip else 'pip3', exp))
+        logging.error("Exception encountered while listing outdated packages with {}. {}".format(pip, exp))
         return []
-    packs = []
+
     # Outdated packages come in the form of <package_name> <version>\n
     # So it is first split by newlines and then only the package name is used.
-    if tmp_packs:
-        for item in tmp_packs.split('\n'):
-            if item.split():
-                packs.append(item.split()[0])
+    packs = []
+    if outdated_packages:
+        packs = [pkg.split()[0] for pkg in outdated_packages.split('\n') if pkg.split() and pkg.split()[0]]
 
-    # Remove all empty strings from list
-    while "" in packs:
-        packs.remove("")
     return packs
 
 
@@ -179,39 +130,37 @@ def update_package(pip, package):
     :type pip: str
     :param package: Name of the package to update.
     :type package: str
-    :return: 0 if all went well, 1 if package already up to date, 2 unknown error.
+    :return: 0 successfully updated package,
+             1 if package already up to date,
+             2 unknown error.
     :rtype: int
     """
-    if pip not in [PIP2, PIP3]:
-        # logging.error("update_packages was called with a bad argument ({}). "
-        #               "Only pip2 or pip3 (with full path) are accepted.".format(pip))
-        return 2
     update_command = [pip, "install", "-U", package]
 
-    if 'posix' in os.name:  # Add 'sudo -i' if running on a *nix system.
-        update_command.insert(0, '-i')
-        update_command.insert(0, 'sudo')
+    if nix:  # Add 'sudo -i' if running on a *nix system.
+        update_command = ['sudo', '-i'] + update_command
     try:
         update_process = subprocess.Popen(update_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    except Exception:
-        # logging.error("{} could not update {}. {}".format("pip2" if "pip2" in pip else "pip3", pkg, exp))
+    except Exception as exp:
+        logging.error("An exception was raised while updating {} using {}. {}".format(package, pip, exp))
         return 2
 
     return_code = update_process.wait()
     output = update_process.communicate()  # Read process' output
-    if not return_code and (not output[0] or 'Successfully installed' in output[0]) and \
+    if not return_code and len(output) == 2 and 'Successfully installed' in output[0] and \
             (not output[1] or 'Inappropriate ioctl' in output[1]):
-        # logging.info("Successfully updated {} with {}".format(pkg, "pip2" if "pip2" in pip else "pip3"))
+        logging.debug("Successfully updated {} with {}".format(package, pip))
         return 0
-    elif output:
-        if output[0] and "Requirement already up-to-date" in output[0]:
+    elif output and len(output) == 2 and not output[1]:
+        if output[0] and "already up-to-date" in output[0]:
+            logging.debug("({}) {} is already up-to-date".format(pip, package))
             return 1
         elif output[0] and 'Successfully installed' in output[0]:
+            logging.debug("Successfully updated {} with {}".format(package, pip))
             return 0
-        else:
-            return 2
-    else:
-        return 2    # Return code is not 0 but there's no output.
+    logging.debug("Couldn't update {} using {}.\n{}".format(package, pip,
+                                                            output[1] if output and len(output) == 2 else ""))
+    return 2  # Return code is not 0 but there's no output.
 
 
 def batch_update_packages(pip, pkg_list):
@@ -222,103 +171,28 @@ def batch_update_packages(pip, pkg_list):
     :param pkg_list: List of names of packages to update.
     :type pkg_list: list
     """
-    if pip not in [PIP2, PIP3]:
-        logging.error("update_packages was called with a bad argument ({}). "
-                      "Only pip2 or pip3 (with full path) are accepted.".format(pip))
-        return False
-    logging.info("Updating the following {} {} package{}: {}".format(
-        len(pkg_list), "pip2" if "pip2" in pip else "pip3", "s" if len(pkg_list) > 1 else "",
-        " ".join(pkg_list)))
+    logging.info("Updating the following {}package{}: {}".format("{} ".format(len(pkg_list))
+                                                                 if len(pkg_list) > 1 else '',
+                                                                 "s" if len(pkg_list) > 1 else "",
+                                                                 " ".join(pkg_list)))
     for pkg in pkg_list:
-        logging.info("Updating Python{} package {}".format(pip[-5] if 'nt' in os.name else pip[-1], pkg))
-        updated = update_package(pip, pkg)
+        logging.info("Updating package {}".format(pkg))
+        try:
+            updated = update_package(pip, pkg)
+        except:
+            updated = -1
         if updated == 0:
-            logging.info("{}{}{} for Python{} was installed {}successfully.".format(
-                COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), pip[-1], COLOR.format(NORMAL, GREEN)))
+            logging.info("{}{}{} installed {}successfully.".format(
+                COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, GREEN)))
         elif updated == 1:
-            logging.warning("{}{}{} for Python{} is {}already up-to-date".format(
-                COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), pip[-1], COLOR.format(NORMAL, YELLOW)))
+            logging.warning("{}{}{} {}already up-to-date.".format(
+                COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, YELLOW)))
         elif updated == 2:
-            logging.error("{}An error was encountered while trying to update {}{}{} for Python{}.".format(
-                COLOR.format(NORMAL, RED), COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, RED), pip[-1]))
+            logging.error("{}An error was encountered while trying to update {}{}{} using {}.".format(
+                COLOR.format(NORMAL, RED), COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, RED), pip))
         else:
-            pass
-
-
-def create_argparser():
-    """
-    Create an argument parser for pipdate.
-    :return: An argument parser.
-    :rtype: argparse.ArgumentParser
-    """
-    parser = argparse.ArgumentParser(description="pipdate - Update all outdated pip packages for both "
-                                                 "Python2 and Python3 in a single command.")
-    parser.add_argument("-p", "--packages", nargs='+', action="store", type=str,
-                        help="Packages to specifically update (at least one). "
-                             "The same as running 'pip install -U <package>'")
-    parser.add_argument("-v", "--version", action="store", type=int,
-                        help="2 to only update Python2, 3 for python3.")
-    parser.add_argument("-l", "--loglevel", action="store", type=str,
-                        help="Set the log level output to stdout. Can be DEBUG/INFO/WARNING/ERROR/CRITICAL.")
-    return parser.parse_args()
-
-
-def pipdate(arguments):
-    """
-    Update pip packages according to arguments.
-    :param arguments: Arguments for pipdate.
-    :type arguments: argparse.ArgumentParser
-    :return: 0 if successful; 1 otherwise
-    :rtype: int
-    """
-    loglevels = {'info': logging.INFO, 'debug': logging.DEBUG, 'warning': logging.WARNING, 'warn': logging.WARN,
-                 'error': logging.ERROR, 'critical': logging.CRITICAL}
-
-    if arguments.loglevel and arguments.loglevel.lower() == "debug":
-        logging.basicConfig(format="{}%(asctime)s {}[PIPDATE] %(levelname)s: [%(funcName)s] {}%(message)s".format(
-            COLOR.format(BOLD, BLUE), COLOR.format(BOLD, GREEN), COLOR.format(NORMAL, WHITE)
-        ), datefmt="%Y-%m-%d %H:%M:%S", level=logging.DEBUG)
-    else:
-        logging.basicConfig(format="{}[PIPDATE] {}%(message)s".format(
-            COLOR.format(BOLD, BLUE), COLOR.format(NORMAL, WHITE)), datefmt="%Y-%m-%d %H:%M:%S",
-            level=loglevels[str(arguments.loglevel).lower()]
-            if arguments.loglevel and str(arguments.loglevel).lower() in loglevels else logging.INFO)
-
-    logging.info("pipdate v.{}".format(__ver__))
-
-    # User specified packages for update.
-    packages = list(arguments.packages) if arguments.packages else None
-    # User specified version of Python libs to update.
-    version = [arguments.version] if arguments.version else [2, 3]
-
-    # Get pip locations
-    locate_pip(pip_version=version)
-
-    # Update according to required and found pips
-    packages_to_update = {2: [], 3: []}
-    if not PIP2 and not PIP3:
-        logging.critical("{}Couldn't locate either pip2 or pip3. Aborting...".format(COLOR.format(NORMAL, RED)))
-        return 1
-    pips = {2: PIP2, 3: PIP3}
-    for pip in pips:
-        if not pips[pip] and pip in version:
-            logging.warning("{}Couldn't find {}".format(COLOR.format(NORMAL, RED), pip))
-        elif pips[pip] and pip in version:
-            updated_pip = update_package(pips[pip], 'pip')
-            if updated_pip == 0:
-                logging.info("{}Updated pip{} to the latest version.".format(COLOR.format(NORMAL, GREEN), pip))
-            logging.info("Creating update list for Python {}".format(pip))
-            packages_to_update[pip] = packages if packages else list_outdated_packages(pips[pip])
-            if packages_to_update[pip] is False:
-                logging.warning("{}Encountered an error listing {} packages. "
-                                "Run the command manually in order to determine further details.".
-                                format(COLOR.format(NORMAL, RED), "pip2" if "2" in pip else "pip3"))
-            if not packages_to_update[pip]:
-                logging.info("{}No outdated Python{} packages found!".format(COLOR.format(NORMAL, YELLOW), pip))
-            else:
-                batch_update_packages(pips[pip], packages_to_update[pip])
-                logging.info("{}Updating of Python{} packages completed.".format(COLOR.format(NORMAL, GREEN), pip))
-    return 0
+            logging.error("{}Something went wrong while updating {} using {}.".format(
+                COLOR.format(BOLD, RED), pkg, pip))
 
 
 def running_as_root():
@@ -329,17 +203,91 @@ def running_as_root():
     """
     if ('nt' not in os.name and not os.getuid() == 0) or \
             ('nt' in os.name and 'windll' in dir(ctypes) and not ctypes.windll.Shell32.IsUserAnAdmin() == 1):
-        logging.basicConfig(format="{}[PIPDATE] {}%(message)s".format(
-            COLOR.format(BOLD, BLUE), COLOR.format(NORMAL, WHITE)), datefmt="%Y-%m-%d %H:%M:%S",
-            level=logging.INFO)
-        logging.info("pipdate v.{}".format(__ver__))
-        logging.error("{}pipdate should be run with admin permissions. Try 'sudo python pipdate.py'".format(
-            COLOR.format(NORMAL, RED)))
+        logging.basicConfig(format="{}%(message)s".format(COLOR.format(NORMAL, WHITE)),
+                            datefmt="%Y-%m-%d %H:%M:%S",
+                            level=logging.INFO)
+        logging.info("pipdate v.{}".format(__version__))
+        logging.error("pipdate can only {}run with admin permissions{}. Try 'sudo python pipdate.py'".format(
+            COLOR.format(BOLD, RED), COLOR.format(NORMAL, WHITE)))
         return False
     return True
 
 
+def create_argparser():     # pragma: no cover
+    """
+    Create an argument parser for pipdate.
+    :return: An argument parser.
+    :rtype: argparse.ArgumentParser
+    """
+    parser = argparse.ArgumentParser(description="pipdate - Update all outdated pip packages for both "
+                                                 "Python2 and Python3 in a single command.")
+    parser.add_argument("-p", "--packages", nargs='+', action="store", type=str,
+                        help="Packages to specifically update (at least one). "
+                             "The same as running 'pip install -U <package>'")
+    parser.add_argument("-v", "--verbosity", action="store_true",
+                        help="Print a more verbose output.")
+    parser.add_argument("-d", "--display-pips", action="store_true",
+                        help="Only show the available pips on the system.")
+    return parser.parse_args()
+
+
+# noinspection PyUnresolvedReferences
+def pipdate(arguments):
+    """
+    Update pip packages according to arguments.
+    :param arguments: Arguments for pipdate.
+    :type arguments: argparse.ArgumentParser
+    :return: 0 if successful; 1 otherwise
+    :rtype: int
+    """
+
+    logging.basicConfig(
+        format="{}%(message)s".format(COLOR.format(NORMAL, WHITE)),
+        datefmt="%Y-%m-%d %H:%M:%S",
+        level=logging.DEBUG if arguments.verbosity else logging.INFO)
+
+    logging.info("pipdate v.{}".format(__version__))
+
+    # User specified packages for update.
+    packages = list(arguments.packages) if arguments.packages else []
+
+    # Set OS dependent paths to the pip script.
+    pips = get_pip_paths()
+    if not pips:
+        logging.warning("{}Unable to find any pip scripts in the system.".format(COLOR.format(BOLD, RED)))
+        return 1
+
+    logging.info("Using the following pips to update: {}{}".format(COLOR.format(NORMAL, BLUE), pips))
+
+    # If the user is only after the installed pips - quit now, knowing the job was probably well done.
+    if arguments.display_pips:
+        return 0
+
+    for current_pip in pips:
+
+        # If there are no specific packages to update - get a list of outdated packages.
+        if not packages:
+            logging.info("Retreiving outdated packages for {}".format(current_pip))
+        packages_to_update = packages if packages else list_outdated_packages(current_pip)
+        if not packages_to_update:
+            logging.info("{}No outdated packages found!".format(COLOR.format(NORMAL, YELLOW)))
+        else:
+            # Try to update pip first.
+            logging.debug("Making sure {} is up-to-date...".format(current_pip))
+            updated_pip = update_package(current_pip, 'pip')
+            if updated_pip == 0:  # Print a message only if succeeded in updating pip.
+                logging.info("{}{}{} updated!".format(COLOR.format(NORMAL, GREEN),
+                                                      current_pip, COLOR.format(NORMAL, GREEN)))
+
+            # Update all requested packages.
+            batch_update_packages(current_pip, packages_to_update)
+
+    logging.info("Done! :)")
+    return 0
+
+
 if __name__ == "__main__":
+    args = create_argparser()   # Placed here so that '-h' can be presented even without root.
     if running_as_root():
-        sys.exit(pipdate(create_argparser()))
+        sys.exit(pipdate(args))
     sys.exit(1)

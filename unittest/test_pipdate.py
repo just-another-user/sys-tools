@@ -6,7 +6,7 @@ import mock
 from pipdate import *
 import unittest2 as unittest
 
-__version__ = '1.03'
+__version__ = '1.04'
 __last_updated__ = '03/10/2016'
 __author__ = 'just-another-user'
 
@@ -425,3 +425,7 @@ class PipdateTestSuite(unittest.TestCase):
 
         self.assertEqual(0, pipdate())
         mock_log.info.assert_any_call('No outdated packages found!')
+
+
+if __name__ == '__main__':
+    unittest.main()

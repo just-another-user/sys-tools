@@ -10,14 +10,12 @@ by using the command line arguments (can be viewed by adding -h at execution.).
 Basic use:
     $sudo python pipdate.py
 
- * Pipdate must have root/admin permission in order to run pip list and pip install.
-
+ * Pipdate must have root/admin permission in order to run pip install.
 
 
 TODO:
   - Add: Support for other OSs.
   - Add: Log level for output, and a command-line option to turn it on and show the output.
-  - Fix: Colors aren't displayed in Windows.
 """
 import argparse
 import logging
@@ -27,8 +25,8 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.06'
-__last_updated__ = '05/09/2016'
+__version__ = '1.10'
+__last_updated__ = '03/10/2016'
 __author__ = 'just-another-user'
 
 # **********************************************************************
@@ -49,6 +47,21 @@ def get_pip_paths():        # pragma: no cover
     :return:
     :rtype:
     """
+
+    def is_float(num):
+        """
+        Check if a string is a float.
+        :param num: The string to test.
+        :type num: str
+        :return: True if string is a float; False otherwise
+        :rtype: bool
+        """
+        try:
+            assert isinstance(float(num), float)
+            return True
+        except:
+            pass
+        return False
     # Possible locations for pip script, with os.sep at the end.
     known_nix_paths = ['/usr/bin/', '/usr/local/bin/']
 
@@ -58,7 +71,7 @@ def get_pip_paths():        # pragma: no cover
             _, _, files = os.walk(path).next()
             # Get all files which start with pip.
             pip_paths += [path + _file for _file in files if _file.lower().startswith('pip') and
-                          os.path.exists(path + _file)]
+                          is_float(_file[3:]) and os.path.exists(path + _file)]
             # In *nix systems there might be a couple of files referencing the same files:
             # e.g. 'pip2', 'pip2.7', 'pip', etc...
             # In order to avoid these duplicates, only keep the unique files (i.e. 'pip2.7' and not the rest).
@@ -118,6 +131,7 @@ def list_outdated_packages(pip):
     # So it is first split by newlines and then only the package name is used.
     packs = []
     if outdated_packages:
+        # noinspection PyTypeChecker
         packs = [pkg.split()[0] for pkg in outdated_packages.split('\n') if pkg.split() and pkg.split()[0]]
 
     return packs
@@ -207,7 +221,7 @@ def running_as_root():
                             datefmt="%Y-%m-%d %H:%M:%S",
                             level=logging.INFO)
         logging.info("pipdate v.{}".format(__version__))
-        logging.error("pipdate can only {}run with admin permissions{}. Try 'sudo python pipdate.py'".format(
+        logging.error("pipdate can only {}run with admin permissions{}.\nTry 'sudo python pipdate.py'".format(
             COLOR.format(BOLD, RED), COLOR.format(NORMAL, WHITE)))
         return False
     return True
@@ -225,16 +239,20 @@ def create_argparser():     # pragma: no cover
                         help="Packages to specifically update (at least one). "
                              "The same as running 'pip install -U <package>'")
     parser.add_argument("-v", "--verbosity", action="store_true",
-                        help="Print a more verbose output.")
+                        help="Be more verbose.")
     parser.add_argument("-d", "--display-pips", action="store_true",
                         help="Only show the available pips on the system.")
+    parser.add_argument("-a", "--add-pip", dest='extra_pip', nargs="+", action="store", type=str,
+                        help="Add this pip to the list and use it to update outdated packages.")
+    parser.add_argument("-j", "--just-these-pips", dest="just_these_pips", nargs="+", action="store", type=str,
+                        help="Update outdated packages using just these pips (at least one).")
     return parser.parse_args()
 
 
 # noinspection PyUnresolvedReferences
 def pipdate(arguments):
     """
-    Update pip packages according to arguments.
+    Update packages according to arguments.
     :param arguments: Arguments for pipdate.
     :type arguments: argparse.ArgumentParser
     :return: 0 if successful; 1 otherwise
@@ -251,8 +269,14 @@ def pipdate(arguments):
     # User specified packages for update.
     packages = list(arguments.packages) if arguments.packages else []
 
-    # Set OS dependent paths to the pip script.
-    pips = get_pip_paths()
+    if arguments.just_these_pips:
+        pips = [pip for pip in arguments.just_these_pips if os.path.isfile(pip)]
+    else:
+        # Set OS dependent paths to the pip script.
+        pips = get_pip_paths()
+        if arguments.extra_pip:
+            pips.extend([pip for pip in arguments.extra_pip if os.path.isfile(pip)])
+
     if not pips:
         logging.warning("{}Unable to find any pip scripts in the system.".format(COLOR.format(BOLD, RED)))
         return 1

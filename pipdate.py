@@ -25,7 +25,7 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.10'
+__version__ = '1.11'
 __last_updated__ = '03/10/2016'
 __author__ = 'just-another-user'
 
@@ -63,26 +63,27 @@ def get_pip_paths():        # pragma: no cover
             pass
         return False
     # Possible locations for pip script, with os.sep at the end.
-    known_nix_paths = ['/usr/bin/', '/usr/local/bin/']
+    known_nix_paths = ['/usr/local/bin/', '/usr/bin/']
 
     pip_paths = []
     if nix:
         for path in known_nix_paths:
-            _, _, files = os.walk(path).next()
+            _, _, files = next(os.walk(path))
             # Get all files which start with pip.
             pip_paths += [path + _file for _file in files if _file.lower().startswith('pip') and
-                          is_float(_file[3:]) and os.path.exists(path + _file)]
-            # In *nix systems there might be a couple of files referencing the same files:
-            # e.g. 'pip2', 'pip2.7', 'pip', etc...
-            # In order to avoid these duplicates, only keep the unique files (i.e. 'pip2.7' and not the rest).
-            for pip in pip_paths[::]:  # Iterate over a *copy* of the list so that it could be manipulated as well.
-                found = False
-                for _pip in pip_paths:
-                    if found:
-                        break
-                    if not pip == _pip and pip.split('/')[-1] in _pip.split('/')[-1]:
-                        pip_paths.remove(pip)
-                        found = True
+                          is_float(_file[3:]) and os.path.isfile(path + _file) and path + _file not in pip_paths]
+        # ***
+        # In *nix systems there might be a couple of files referencing the same files:
+        # e.g. 'pip2', 'pip2.7', 'pip', etc...
+        # In order to avoid these duplicates, only keep the unique files (i.e. 'pip2.7' and not the rest).
+
+        #  Iterate over a *copy* of the list so that it could be manipulated as well.
+        pip_paths = sorted(list(set(pip_paths[::])))
+        for pip in pip_paths[::]:
+            for _pip in pip_paths[pip_paths.index(pip) + 1:]:
+                if not pip == _pip and pip.split('/')[-1] in _pip.split('/')[-1]:
+                    pip_paths.remove(pip)
+                    break
 
     elif 'nt' in os.name:
         try:
@@ -98,7 +99,7 @@ def get_pip_paths():        # pragma: no cover
             # pip script in the expected subfolder.
             pip_paths = []
             for path in availble_locations:
-                _, dirs, _ = os.walk(path).next()  # Get only the folders directly under the searched path.
+                _, dirs, _ = next(os.walk(path))  # Get only the folders directly under the searched path.
                 for _dir in dirs:
                     if 'python' in _dir.lower() and os.path.isfile(path + _dir + "\\Scripts\pip.exe"):
                         pip_paths.append(path + _dir + "\\Scripts\pip.exe")
@@ -220,7 +221,6 @@ def running_as_root():
         logging.basicConfig(format="{}%(message)s".format(COLOR.format(NORMAL, WHITE)),
                             datefmt="%Y-%m-%d %H:%M:%S",
                             level=logging.INFO)
-        logging.info("pipdate v.{}".format(__version__))
         logging.error("pipdate can only {}run with admin permissions{}.\nTry 'sudo python pipdate.py'".format(
             COLOR.format(BOLD, RED), COLOR.format(NORMAL, WHITE)))
         return False
@@ -233,8 +233,8 @@ def create_argparser():     # pragma: no cover
     :return: An argument parser.
     :rtype: argparse.ArgumentParser
     """
-    parser = argparse.ArgumentParser(description="pipdate - Update all outdated pip packages for both "
-                                                 "Python2 and Python3 in a single command.")
+    parser = argparse.ArgumentParser(description="pipdate - Update all outdated packages for all installed "
+                                                 "Python versions in a single command.")
     parser.add_argument("-p", "--packages", nargs='+', action="store", type=str,
                         help="Packages to specifically update (at least one). "
                              "The same as running 'pip install -U <package>'")
@@ -246,52 +246,66 @@ def create_argparser():     # pragma: no cover
                         help="Add this pip to the list and use it to update outdated packages.")
     parser.add_argument("-j", "--just-these-pips", dest="just_these_pips", nargs="+", action="store", type=str,
                         help="Update outdated packages using just these pips (at least one).")
+    parser.add_argument("-f", "--find-pips", dest='find_pips', action="store_true",
+                        help="Locate all pip files in the system, print their full path and exit.")
     return parser.parse_args()
 
 
 # noinspection PyUnresolvedReferences
-def pipdate(arguments):
+def pipdate():
     """
     Update packages according to arguments.
-    :param arguments: Arguments for pipdate.
-    :type arguments: argparse.ArgumentParser
     :return: 0 if successful; 1 otherwise
     :rtype: int
     """
-
+    arguments = create_argparser()
     logging.basicConfig(
         format="{}%(message)s".format(COLOR.format(NORMAL, WHITE)),
         datefmt="%Y-%m-%d %H:%M:%S",
         level=logging.DEBUG if arguments.verbosity else logging.INFO)
 
     logging.info("pipdate v.{}".format(__version__))
-
-    # User specified packages for update.
-    packages = list(arguments.packages) if arguments.packages else []
+    logging.info("")
 
     if arguments.just_these_pips:
         pips = [pip for pip in arguments.just_these_pips if os.path.isfile(pip)]
     else:
         # Set OS dependent paths to the pip script.
         pips = get_pip_paths()
+        if arguments.find_pips:
+            if pips:
+                logging.info("Found the following unique pip versions:")
+                for pip in pips:
+                    logging.info("\t{}".format(pip))
+                return 0
+            logging.warning("Could not locate any pip files in the system.")
+            return 1
         if arguments.extra_pip:
             pips.extend([pip for pip in arguments.extra_pip if os.path.isfile(pip)])
 
     if not pips:
-        logging.warning("{}Unable to find any pip scripts in the system.".format(COLOR.format(BOLD, RED)))
+        logging.warning("{}Unable to find any pip files in the system.".format(COLOR.format(BOLD, RED)))
         return 1
 
-    logging.info("Using the following pips to update: {}{}".format(COLOR.format(NORMAL, BLUE), pips))
+    if not running_as_root():
+        return 1
+
+    logging.info("Updating using the following pip versions:")
+    for pip in pips:
+        logging.info("\t{}{}".format(COLOR.format(NORMAL, BLUE), pip))
 
     # If the user is only after the installed pips - quit now, knowing the job was probably well done.
     if arguments.display_pips:
         return 0
 
+    # User specified packages for update.
+    packages = list(arguments.packages) if arguments.packages else []
+
     for current_pip in pips:
 
         # If there are no specific packages to update - get a list of outdated packages.
         if not packages:
-            logging.info("Retreiving outdated packages for {}".format(current_pip))
+            logging.info("Retreiving outdated packages for {}{}".format(COLOR.format(NORMAL, BLUE), current_pip))
         packages_to_update = packages if packages else list_outdated_packages(current_pip)
         if not packages_to_update:
             logging.info("{}No outdated packages found!".format(COLOR.format(NORMAL, YELLOW)))
@@ -311,7 +325,4 @@ def pipdate(arguments):
 
 
 if __name__ == "__main__":
-    args = create_argparser()   # Placed here so that '-h' can be presented even without root.
-    if running_as_root():
-        sys.exit(pipdate(args))
-    sys.exit(1)
+    sys.exit(pipdate())

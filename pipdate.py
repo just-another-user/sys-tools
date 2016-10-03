@@ -25,7 +25,7 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.11'
+__version__ = '1.12'
 __last_updated__ = '03/10/2016'
 __author__ = 'just-another-user'
 
@@ -186,10 +186,10 @@ def batch_update_packages(pip, pkg_list):
     :param pkg_list: List of names of packages to update.
     :type pkg_list: list
     """
-    logging.info("Updating the following {}package{}: {}".format("{} ".format(len(pkg_list))
-                                                                 if len(pkg_list) > 1 else '',
-                                                                 "s" if len(pkg_list) > 1 else "",
-                                                                 " ".join(pkg_list)))
+    logging.info("The following {}package{} will be updated: {}".format("{} ".format(len(pkg_list))
+                                                                        if len(pkg_list) > 1 else '',
+                                                                        "s" if len(pkg_list) > 1 else "",
+                                                                        " ".join(pkg_list)))
     for pkg in pkg_list:
         logging.info("Updating package {}".format(pkg))
         try:
@@ -235,19 +235,17 @@ def create_argparser():     # pragma: no cover
     """
     parser = argparse.ArgumentParser(description="pipdate - Update all outdated packages for all installed "
                                                  "Python versions in a single command.")
-    parser.add_argument("-p", "--packages", nargs='+', action="store", type=str,
-                        help="Packages to specifically update (at least one). "
-                             "The same as running 'pip install -U <package>'")
     parser.add_argument("-v", "--verbosity", action="store_true",
                         help="Be more verbose.")
     parser.add_argument("-d", "--display-pips", action="store_true",
                         help="Only show the available pips on the system.")
-    parser.add_argument("-a", "--add-pip", dest='extra_pip', nargs="+", action="store", type=str,
+    parser.add_argument("-p", "--packages", metavar="PACKAGE", nargs='+', action="store", type=str,
+                        help="Packages to specifically update or install (at least one). "
+                             "The same as running 'pip install -U <package>'")
+    parser.add_argument("-a", "--add-pip", metavar="PIP", dest='extra_pip', nargs="+", action="store", type=str,
                         help="Add this pip to the list and use it to update outdated packages.")
-    parser.add_argument("-j", "--just-these-pips", dest="just_these_pips", nargs="+", action="store", type=str,
-                        help="Update outdated packages using just these pips (at least one).")
-    parser.add_argument("-f", "--find-pips", dest='find_pips', action="store_true",
-                        help="Locate all pip files in the system, print their full path and exit.")
+    parser.add_argument("-j", "--just-these-pips", metavar="PIP", dest="just_these_pips", nargs="+", action="store",
+                        type=str, help="Update outdated packages using just these pips (at least one).")
     return parser.parse_args()
 
 
@@ -267,25 +265,23 @@ def pipdate():
     logging.info("pipdate v.{}".format(__version__))
     logging.info("")
 
-    if arguments.just_these_pips:
-        pips = [pip for pip in arguments.just_these_pips if os.path.isfile(pip)]
-    else:
-        # Set OS dependent paths to the pip script.
-        pips = get_pip_paths()
-        if arguments.find_pips:
-            if pips:
-                logging.info("Found the following unique pip versions:")
-                for pip in pips:
-                    logging.info("\t{}".format(pip))
-                return 0
-            logging.warning("Could not locate any pip files in the system.")
-            return 1
-        if arguments.extra_pip:
-            pips.extend([pip for pip in arguments.extra_pip if os.path.isfile(pip)])
+    # Set OS dependent paths to the pip script.
+    pips = get_pip_paths() if not arguments.just_these_pips else [pip for pip in arguments.just_these_pips
+                                                                  if os.path.isfile(pip)]
 
     if not pips:
         logging.warning("{}Unable to find any pip files in the system.".format(COLOR.format(BOLD, RED)))
         return 1
+
+    if arguments.display_pips and not arguments.just_these_pips:
+        if pips:
+            logging.info("Found the following unique pip versions:")
+            for pip in pips:
+                logging.info("\t{}".format(pip))
+            return 0
+
+        if arguments.extra_pip and not arguments.just_these_pips:
+            pips.extend([pip for pip in arguments.extra_pip if os.path.isfile(pip)])
 
     if not running_as_root():
         return 1
@@ -293,10 +289,6 @@ def pipdate():
     logging.info("Updating using the following pip versions:")
     for pip in pips:
         logging.info("\t{}{}".format(COLOR.format(NORMAL, BLUE), pip))
-
-    # If the user is only after the installed pips - quit now, knowing the job was probably well done.
-    if arguments.display_pips:
-        return 0
 
     # User specified packages for update.
     packages = list(arguments.packages) if arguments.packages else []

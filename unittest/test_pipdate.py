@@ -6,8 +6,8 @@ import mock
 from pipdate import *
 import unittest2 as unittest
 
-__version__ = '1.01'
-__last_updated__ = '05/09/2016'
+__version__ = '1.04'
+__last_updated__ = '03/10/2016'
 __author__ = 'just-another-user'
 
 
@@ -133,6 +133,7 @@ class ListOutdatedPackagesTestSuite(unittest.TestCase):
         self.assertEqual([], list_outdated_packages('pip'))
 
 
+# noinspection PyPep8Naming
 class UpdatePackageTestSuite(unittest.TestCase):
     def setUp(self):
         # noinspection PyAttributeOutsideInit
@@ -227,6 +228,7 @@ class UpdatePackageTestSuite(unittest.TestCase):
         mock_popen.assert_called_with(['sudo', '-i', 'pip', 'install', '-U', 'package'], stderr=-1, stdout=-1)
 
 
+# noinspection PyPep8Naming
 class BatchUpdatePackagesTestSuite(unittest.TestCase):
     """
     batch_update_packages iterates over the list of packages and reports to the log the
@@ -300,8 +302,9 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
 
 
 # TODO: Finish PipdateTestSuite
-# noinspection PyTypeChecker
+# noinspection PyTypeChecker,PyPep8Naming
 class PipdateTestSuite(unittest.TestCase):
+
     def setUp(self):
         # noinspection PyAttributeOutsideInit
         self.original_state = pipdate.__globals__["COLOR"]
@@ -310,99 +313,119 @@ class PipdateTestSuite(unittest.TestCase):
     def tearDown(self):
         pipdate.__globals__["COLOR"] = self.original_state
 
-    @mock.patch('pipdate.get_pip_paths')
+    @mock.patch('pipdate.create_argparser')
     @mock.patch('pipdate.logging')
-    def test_logging_level_defaults_to_info(self, mock_logging, mock_gpp):
+    def test_logging_level_defaults_to_info(self, mock_logging, mock_args):
         """
         Test that the logging level is set to INFO by default (i.e. setting arguments.verbosity to False).
         """
-        mock_gpp.return_value = []  # No pip paths allows for a quick getaway.
         mock_logging.INFO = logging.INFO
-        mock_args = mock.MagicMock()
-        mock_args.verbosity = False
-        mock_args.packages = None
-        self.assertEqual(1, pipdate(mock_args))
+        mock_args.return_value.verbosity = False
+        mock_args.return_value.packages = None
+
+        self.assertEqual(1, pipdate())
         mock_logging.basicConfig.assert_any_call(format=mock.ANY, datefmt=mock.ANY, level=logging.INFO)
 
-    @mock.patch('pipdate.get_pip_paths')
+    @mock.patch('pipdate.create_argparser')
     @mock.patch('pipdate.logging')
-    def test_verbosity_flag_turns_logging_level_to_debug(self, mock_logging, mock_gpp):
+    def test_verbosity_flag_turns_logging_level_to_debug(self, mock_logging, mock_args):
         """
         Test that the arguments.verbosity variable really does affect the logging level, setting it to DEBUG.
         """
-        mock_gpp.return_value = []  # No pip paths allows for a quick getaway.
         mock_logging.INFO = logging.INFO
         mock_logging.DEBUG = logging.DEBUG
-        mock_args = mock.MagicMock()
-        mock_args.verbosity = True
-        mock_args.packages = None
-        self.assertEqual(1, pipdate(mock_args))
+        mock_args.return_value.verbosity = True
+        mock_args.return_value.packages = None
+
+        self.assertEqual(1, pipdate())
         mock_logging.basicConfig.assert_any_call(format=mock.ANY, datefmt=mock.ANY, level=logging.DEBUG)
 
+    @mock.patch('pipdate.running_as_root', mock.MagicMock())
+    @mock.patch('pipdate.os.path.isfile', mock.MagicMock())
+    @mock.patch('pipdate.create_argparser')
     @mock.patch('pipdate.batch_update_packages')
     @mock.patch('pipdate.update_package')
-    @mock.patch('pipdate.get_pip_paths')
-    def test_argument_packages_is_read_and_called_with_batch_update_packages(self, mock_gpp, mock_up, mock_bup):
+    def test_argument_packages_is_read_and_called_with_batch_update_packages(self, mock_up, mock_bup, mock_args):
         """
         Test that packages entered as arguments are fed into the machine and updated.
         Expected result is to have batch_update_packages to be called with the packages given through arguments.
         """
-        mock_gpp.return_value = ['pip']
-        mock_args = mock.MagicMock()
-        mock_args.verbosity = False
-        mock_args.display_pips = False
-        mock_args.packages = ["pkg1", "pkg2", "pkg3"]
+        mock_args.return_value.verbosity = False
+        mock_args.return_value.display_pips = False
+        mock_args.return_value.packages = ["pkg1", "pkg2", "pkg3"]
+        mock_args.return_value.just_these_pips = ["pip"]
         mock_up.return_value = 1  # Pip not updated.
-        self.assertEqual(0, pipdate(mock_args))
-        mock_bup.assert_any_call('pip', mock_args.packages)
 
+        self.assertEqual(0, pipdate())
+        mock_bup.assert_any_call('pip', mock_args.return_value.packages)
+
+    @mock.patch('pipdate.create_argparser')
     @mock.patch('pipdate.get_pip_paths')
-    def test_pip_get_paths_returns_empty_list_return_1(self, mock_gpp):
+    def test_pip_get_paths_returns_empty_list_return_1(self, mock_gpp, mock_args):
         """
         Test a scenario where pip_get_paths finds no pips on the system.
         Expected result is the script will return 1 and exit.
         """
         mock_gpp.return_value = []
-        mock_args = mock.MagicMock()
-        mock_args.verbosity = False
-        self.assertEqual(1, pipdate(mock_args))
+        mock_args.return_value.just_these_pips = False
+        mock_args.return_value.display_pips = False
+        mock_args.return_value.extra_pip = False
 
+        self.assertEqual(1, pipdate())
+
+    @mock.patch('pipdate.running_as_root')
+    @mock.patch('pipdate.create_argparser')
     @mock.patch('pipdate.get_pip_paths')
-    def test_argument_display_pips_true_return_0(self, mock_gpp):
+    def test_argument_display_pips_true_return_0(self, mock_gpp, mock_args, mock_root):
         """
         Test a scenario in which the user has decided to only print out the paths to pips found in the system,
         and the quit, by setting the display_pips flag.
         """
         mock_gpp.return_value = ['pip']
-        mock_args = mock.MagicMock()
-        mock_args.verbosity = False
-        mock_args.display_pips = True
-        self.assertEqual(0, pipdate(mock_args))
+        mock_args.return_value.just_these_pips = False
+        mock_args.return_value.display_pips = True
+        mock_args.return_value.extra_pip = False
+
+        self.assertEqual(0, pipdate())
+        mock_root.assert_not_called()
 
     # noinspection PyUnusedLocal
+    @mock.patch('pipdate.running_as_root', mock.MagicMock())
     @mock.patch('pipdate.logging')
-    @mock.patch('pipdate.batch_update_packages')
+    @mock.patch('pipdate.batch_update_packages', mock.MagicMock())
     @mock.patch('pipdate.update_package')
     @mock.patch('pipdate.get_pip_paths')
-    def test_pip_was_successfully_updated_log_message_displayed(self, mock_gpp, mock_up, mock_bup, mock_log):
+    @mock.patch('pipdate.create_argparser')
+    def test_pip_was_successfully_updated_log_message_displayed(self, mock_args, mock_gpp, mock_up, mock_log):
         mock_gpp.return_value = ['pip']
-        mock_args = mock.MagicMock()
-        mock_args.verbosity = False
-        mock_args.display_pips = False
-        mock_args.packages = ["pkg1", "pkg2", "pkg3"]
+        mock_args.return_value.just_these_pips = False
+        mock_args.return_value.display_pips = False
+        mock_args.return_value.extra_pip = False
+        mock_args.return_value.verbosity = False
+        mock_args.return_value.packages = ["pkg"]
         mock_up.return_value = 0  # Pip updated.
-        self.assertEqual(0, pipdate(mock_args))
+
+        self.assertEqual(0, pipdate())
         mock_log.info.assert_any_call('pip updated!')
 
+    @mock.patch('pipdate.running_as_root', mock.MagicMock())
     @mock.patch('pipdate.logging')
     @mock.patch('pipdate.list_outdated_packages')
     @mock.patch('pipdate.get_pip_paths')
-    def test_no_outdated_packages_to_update_log_message_return_0(self, mock_gpp, mock_lup, mock_log):
+    @mock.patch('pipdate.create_argparser')
+    def test_no_outdated_packages_to_update_log_message_return_0(self, mock_args, mock_gpp, mock_lup, mock_log):
         mock_gpp.return_value = ['pip']
         mock_lup.return_value = []
-        mock_args = mock.MagicMock()
-        mock_args.verbosity = False
-        mock_args.display_pips = False
+        mock_args.return_value.just_these_pips = False
+        mock_args.return_value.display_pips = False
+        mock_args.return_value.extra_pip = False
+        mock_args.return_value.verbosity = False
+        mock_args.return_value.packages = []
         mock_args.packages = []
-        self.assertEqual(0, pipdate(mock_args))
+
+        self.assertEqual(0, pipdate())
         mock_log.info.assert_any_call('No outdated packages found!')
+
+
+if __name__ == '__main__':
+    unittest.main()

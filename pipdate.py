@@ -25,7 +25,7 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.14'
+__version__ = '1.15'
 __last_updated__ = '04/10/2016'
 __author__ = 'just-another-user'
 
@@ -63,15 +63,18 @@ def get_pip_paths():        # pragma: no cover
             pass
         return False
     # Possible locations for pip script, with os.sep at the end.
-    known_nix_paths = ['/usr/local/bin/', '/usr/bin/']
+    known_nix_paths = ['/usr/local/bin', '/usr/bin']
 
     pip_paths = []
     if nix:
         for path in known_nix_paths:
             _, _, files = next(os.walk(path))
             # Get all files which start with pip.
-            pip_paths += [path + _file for _file in files if _file.lower().startswith('pip') and
-                          is_float(_file[3:]) and os.path.isfile(path + _file) and path + _file not in pip_paths]
+            pip_paths += [os.sep.join([path, _file]) for _file in files
+                          if _file.lower().startswith('pip')
+                          and is_float(_file[3:])
+                          and os.path.isfile(os.sep.join([path, _file]))
+                          and os.sep.join([path, _file]) not in pip_paths]
         # ***
         # In *nix systems there might be a couple of files referencing the same files:
         # e.g. 'pip2', 'pip2.7', 'pip', etc...
@@ -81,28 +84,33 @@ def get_pip_paths():        # pragma: no cover
         pip_paths = sorted(list(set(pip_paths[::])))
         for pip in pip_paths[::]:
             for _pip in pip_paths[pip_paths.index(pip) + 1:]:
-                if not pip == _pip and pip.split('/')[-1] in _pip.split('/')[-1]:
+                if not pip == _pip and pip.split(os.sep)[-1] in _pip.split(os.sep)[-1]:
                     pip_paths.remove(pip)
                     break
 
     elif 'nt' in os.name:
         try:
             # First, add all available drives on the system to the available locations.
-            availble_locations = [drive + ":\\" for drive in list(ascii_uppercase) if os.path.exists(drive + ':\\')]
+            available_locations = [os.sep.join([drive + ":"]) for drive in list(ascii_uppercase)
+                                   if os.path.isdir(os.sep.join([drive + ':', ""]))]
 
             # Then, add Program Files folders as possible locations:
-            pf = ["Program Files\\", "Program Files (x86)\\"]
-            availble_locations += [drive + _pf for drive in availble_locations for _pf in pf if
-                                   os.path.exists(drive + _pf)]
+            pf = ["Program Files", "Program Files (x86)"]
+            available_locations += [os.sep.join([drive, _pf]) for drive in available_locations for _pf in pf if
+                                    os.path.isdir(os.sep.join([drive, _pf]))]
+
+            # Now add specific locations:
+            specific_locations = [os.sep.join([os.environ["LOCALAPPDATA"], "Programs", "Python"])]
+            available_locations += [loc for loc in specific_locations if os.path.isdir(loc)]
 
             # Search all of the available locations for folders with 'python' in their name, and see if they contain the
             # pip script in the expected subfolder.
             pip_paths = []
-            for path in availble_locations:
-                _, dirs, _ = next(os.walk(path))  # Get only the folders directly under the searched path.
-                for _dir in dirs:
-                    if 'python' in _dir.lower() and os.path.isfile(path + _dir + "\\Scripts\pip.exe"):
-                        pip_paths.append(path + _dir + "\\Scripts\pip.exe")
+            for path in available_locations:
+                _, dirs, _ = next(os.walk(path + os.sep))  # Get only the folders directly under the searched path.
+                for _dir in [a_dir for a_dir in dirs if 'python' in a_dir.lower()]:
+                    if os.path.isfile(os.sep.join([path, _dir, "Scripts", "pip.exe"])):
+                        pip_paths.append(os.sep.join([path, _dir, "Scripts", "pip.exe"]))
         except:
             pass
 

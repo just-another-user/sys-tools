@@ -25,8 +25,8 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.12'
-__last_updated__ = '03/10/2016'
+__version__ = '1.13'
+__last_updated__ = '04/10/2016'
 __author__ = 'just-another-user'
 
 # **********************************************************************
@@ -191,13 +191,13 @@ def batch_update_packages(pip, pkg_list):
                                                                         "s" if len(pkg_list) > 1 else "",
                                                                         " ".join(pkg_list)))
     for pkg in pkg_list:
-        logging.info("Updating package {}".format(pkg))
+        logging.info("Updating {}".format(pkg))
         try:
             updated = update_package(pip, pkg)
         except:
             updated = -1
         if updated == 0:
-            logging.info("{}{}{} installed {}successfully.".format(
+            logging.info("{}{}{} updated {}successfully.".format(
                 COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, GREEN)))
         elif updated == 1:
             logging.warning("{}{}{} {}already up-to-date.".format(
@@ -273,14 +273,15 @@ def pipdate():
         logging.warning("{}Unable to find any pip files in the system.".format(COLOR.format(BOLD, RED)))
         return 1
 
-    if arguments.display_pips and not arguments.just_these_pips:
-        if pips:
-            logging.info("Found the following unique pip versions:")
-            for pip in pips:
-                logging.info("\t{}".format(pip))
-            return 0
+    if not arguments.just_these_pips:
+        if arguments.display_pips:
+            if pips:
+                logging.info("Found the following unique pip versions:")
+                for pip in pips:
+                    logging.info("\t{}".format(pip))
+                return 0
 
-        if arguments.extra_pip and not arguments.just_these_pips:
+        if arguments.extra_pip:
             pips.extend([pip for pip in arguments.extra_pip if os.path.isfile(pip)])
 
     if not running_as_root():
@@ -297,12 +298,14 @@ def pipdate():
 
         # If there are no specific packages to update - get a list of outdated packages.
         if not packages:
+            logging.debug("")
             logging.info("Retreiving outdated packages for {}{}".format(COLOR.format(NORMAL, BLUE), current_pip))
         packages_to_update = packages if packages else list_outdated_packages(current_pip)
         if not packages_to_update:
             logging.info("{}No outdated packages found!".format(COLOR.format(NORMAL, YELLOW)))
         else:
             # Try to update pip first.
+            logging.debug("")
             logging.debug("Making sure {} is up-to-date...".format(current_pip))
             updated_pip = update_package(current_pip, 'pip')
             if updated_pip == 0:  # Print a message only if succeeded in updating pip.

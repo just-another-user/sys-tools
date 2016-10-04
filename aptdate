@@ -1,11 +1,11 @@
 #!/bin/bash
 ###########################################
 #
-# aptdate
+# aptdate (v1.01)
 # by just-another-user
 #
 # Description:
-# Update system using apt-get
+# Update system using apt
 #
 ###########################################
 
@@ -15,16 +15,18 @@ noclr='\033[0m'
 
 echo -e ${clr}[APTDATE]${noclr} ${clr2}Removing cache${noclr}
 sudo rm -rf /var/lib/apt/lists/*
-sudo apt-get clean
+sudo apt clean
 
 echo -e ${clr}[APTDATE]${noclr} ${clr2}Updating repositories${noclr}
-sudo apt-get -y update
+sudo apt -y update
 
 echo -e ${clr}[APTDATE]${noclr} ${clr2}Upgrading available packages${noclr}
-sudo apt-get -y dist-upgrade
+sudo apt -y dist-upgrade
 
 echo -e ${clr}[APTDATE]${noclr} ${clr2}Fixing unmet dependencies${noclr}
-sudo apt-get install -f -y
+sudo apt install -f -y
 
 echo -e ${clr}[APTDATE]${noclr} ${clr2}Cleaning up...${noclr}
-sudo apt-get -y autoremove
+sudo apt -y autoremove
+
+echo -e ${clr}[APTDATE]${noclr} ${clr2}Done :)${noclr}

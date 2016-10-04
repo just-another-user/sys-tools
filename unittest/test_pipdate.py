@@ -6,8 +6,8 @@ import mock
 from pipdate import *
 import unittest2 as unittest
 
-__version__ = '1.04'
-__last_updated__ = '03/10/2016'
+__version__ = '1.05'
+__last_updated__ = '04/10/2016'
 __author__ = 'just-another-user'
 
 
@@ -253,7 +253,7 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
         Assert that the correct message was logged using INFO errorlevel.
         """
         mock_update_package.return_value = 0
-        expected_message = "package installed successfully."
+        expected_message = "package updated successfully."
         batch_update_packages('pip', ['package'])
         mock_logging.info.assert_called_with(expected_message)
 

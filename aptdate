@@ -1,7 +1,7 @@
 #!/bin/bash
 ###########################################
 #
-# aptdate (v1.01)
+# aptdate (v1.02)
 # by just-another-user
 #
 # Description:
@@ -29,4 +29,4 @@ sudo apt install -f -y
 echo -e ${clr}[APTDATE]${noclr} ${clr2}Cleaning up...${noclr}
 sudo apt -y autoremove
 
-echo -e ${clr}[APTDATE]${noclr} ${clr2}Done :)${noclr}
+echo -e ${clr}[APTDATE]${noclr} ${clr2}Done :\)${noclr}

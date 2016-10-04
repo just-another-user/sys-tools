@@ -24,7 +24,7 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.16'
+__version__ = '1.17'
 __last_updated__ = '04/10/2016'
 __author__ = 'just-another-user'
 
@@ -292,7 +292,7 @@ def pipdate():
         datefmt="%Y-%m-%d %H:%M:%S",
         level=logging.DEBUG if arguments.verbosity else logging.INFO)
 
-    logging.info("pipdate v.{}".format(__version__))
+    logging.info("pipdate v{}".format(__version__))
     logging.info("")
 
     # Set OS dependent paths to the pip scripts, or set those specified by the "-j" or "--just-these-pips" option.

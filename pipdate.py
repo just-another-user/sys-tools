@@ -4,18 +4,17 @@ by just-another-user.
 
 Description:
 Pipdate lists outdated Python packages for both Python 2 and 3, and updates them all!
-Can be made to update only a chosen Python version and specific packages
-by using the command line arguments (can be viewed by adding -h at execution.).
+    Can be made to update only a chosen Python versions and specific packages
+    by using the command line arguments (can be viewed by adding -h at execution.).
+
+    Can also be used to install packages on all available Python versions
+    in the system by using the '-p' or '--packages' option and specifing new packages to install.
 
 Basic use:
     $sudo python pipdate.py
 
  * Pipdate must have root/admin permission in order to run pip install.
 
-
-TODO:
-  - Add: Support for other OSs.
-  - Add: Log level for output, and a command-line option to turn it on and show the output.
 """
 import argparse
 import logging
@@ -25,13 +24,14 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.15'
+__version__ = '1.16'
 __last_updated__ = '04/10/2016'
 __author__ = 'just-another-user'
 
 # **********************************************************************
 # Initiated global vars and logger.
 nix = True if os.name == 'posix' else False
+log_output = False  # Whether or not to log the output of any pip command; both stdout and stderr.
 
 COLOR = '\x1b[{};{}m' if nix else ''
 BLACK, RED, GREEN, YELLOW, BLUE, PURPLE, CYAN, WHITE = range(30, 38)
@@ -171,6 +171,14 @@ def update_package(pip, package):
 
     return_code = update_process.wait()
     output = tuple(op.decode('utf-8') for op in update_process.communicate())  # Read process' output
+
+    if log_output:  # Log the output of pip install; both stdout and stderr.
+        logging.info("STDOUT:")
+        logging.info(output[0])
+        logging.info("STDERR:")
+        logging.info(output[1])
+        logging.info("")
+
     if not return_code and len(output) == 2 and 'Successfully installed' in output[0] and \
             (not output[1] or 'Inappropriate ioctl' in output[1]):
         logging.debug("Successfully updated {} with {}".format(package, pip))
@@ -249,12 +257,14 @@ def create_argparser():     # pragma: no cover
     :return: An argument parser.
     :rtype: argparse.ArgumentParser
     """
-    parser = argparse.ArgumentParser(description="pipdate - Update all outdated packages for all installed "
-                                                 "Python versions in a single command.")
+    parser = argparse.ArgumentParser(description="pipdate {} - Update all outdated packages for all installed "
+                                                 "Python versions in a single command.".format(__version__))
     parser.add_argument("-v", "--verbosity", action="store_true",
                         help="Be more verbose.")
     parser.add_argument("-d", "--display-pips", action="store_true",
                         help="Only show the available pips on the system.")
+    parser.add_argument("-l", "--log-output", dest="log_output", action="store_true",
+                        help="Log stdout and stderr output from running pip install.")
     parser.add_argument("-p", "--packages", metavar="PACKAGE", nargs='+', action="store", type=str,
                         help="Packages to specifically update or install (at least one). "
                              "The same as running 'pip install -U <package>'")
@@ -273,6 +283,10 @@ def pipdate():
     :rtype: int
     """
     arguments = create_argparser()
+
+    global log_output
+    log_output = arguments.log_output
+
     logging.basicConfig(
         format="{}%(message)s".format(COLOR.format(NORMAL, WHITE)),
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -281,7 +295,7 @@ def pipdate():
     logging.info("pipdate v.{}".format(__version__))
     logging.info("")
 
-    # Set OS dependent paths to the pip script.
+    # Set OS dependent paths to the pip scripts, or set those specified by the "-j" or "--just-these-pips" option.
     pips = get_pip_paths() if not arguments.just_these_pips else [pip for pip in arguments.just_these_pips
                                                                   if os.path.isfile(pip)]
 

@@ -25,7 +25,7 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.13'
+__version__ = '1.14'
 __last_updated__ = '04/10/2016'
 __author__ = 'just-another-user'
 
@@ -133,7 +133,8 @@ def list_outdated_packages(pip):
     packs = []
     if outdated_packages:
         # noinspection PyTypeChecker
-        packs = [pkg.split()[0] for pkg in outdated_packages.split('\n') if pkg.split() and pkg.split()[0]]
+        packs = [pkg.split()[0] for pkg in outdated_packages.decode('utf-8').split('\n')
+                 if pkg.split() and pkg.split()[0]]
 
     return packs
 
@@ -161,18 +162,23 @@ def update_package(pip, package):
         return 2
 
     return_code = update_process.wait()
-    output = update_process.communicate()  # Read process' output
+    output = tuple(op.decode('utf-8') for op in update_process.communicate())  # Read process' output
     if not return_code and len(output) == 2 and 'Successfully installed' in output[0] and \
             (not output[1] or 'Inappropriate ioctl' in output[1]):
         logging.debug("Successfully updated {} with {}".format(package, pip))
         return 0
-    elif output and len(output) == 2 and not output[1]:
-        if output[0] and "already up-to-date" in output[0]:
-            logging.debug("({}) {} is already up-to-date".format(pip, package))
-            return 1
-        elif output[0] and 'Successfully installed' in output[0]:
-            logging.debug("Successfully updated {} with {}".format(package, pip))
-            return 0
+    elif output and len(output) == 2:
+        if not output[1]:
+            if output[0] and "already up-to-date" in output[0]:
+                logging.debug("({}) {} is already up-to-date".format(pip, package))
+                return 1
+            elif output[0] and 'Successfully installed' in output[0]:
+                logging.debug("Successfully updated {} with {}".format(package, pip))
+                return 0
+        elif 'sudo' in output[1]:
+            logging.debug("Cannot update without root/admin permissions!")
+            return 3
+
     logging.debug("Couldn't update {} using {}.\n{}".format(package, pip,
                                                             output[1] if output and len(output) == 2 else ""))
     return 2  # Return code is not 0 but there's no output.
@@ -185,6 +191,8 @@ def batch_update_packages(pip, pkg_list):
     :type pip: str
     :param pkg_list: List of names of packages to update.
     :type pkg_list: list
+    :return: True if successfully iterated over all the packages; False otherwise.
+    :rtype: bool
     """
     logging.info("The following {}package{} will be updated: {}".format("{} ".format(len(pkg_list))
                                                                         if len(pkg_list) > 1 else '',
@@ -205,9 +213,14 @@ def batch_update_packages(pip, pkg_list):
         elif updated == 2:
             logging.error("{}An error was encountered while trying to update {}{}{} using {}.".format(
                 COLOR.format(NORMAL, RED), COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, RED), pip))
+        elif updated == 3:
+            logging.error("{}Cannot update packages without root/admin permissions!".format(COLOR.format(NORMAL, RED)))
+            return False
         else:
             logging.error("{}Something went wrong while updating {} using {}.".format(
                 COLOR.format(BOLD, RED), pkg, pip))
+            return False
+    return True
 
 
 def running_as_root():
@@ -218,11 +231,6 @@ def running_as_root():
     """
     if ('nt' not in os.name and not os.getuid() == 0) or \
             ('nt' in os.name and 'windll' in dir(ctypes) and not ctypes.windll.Shell32.IsUserAnAdmin() == 1):
-        logging.basicConfig(format="{}%(message)s".format(COLOR.format(NORMAL, WHITE)),
-                            datefmt="%Y-%m-%d %H:%M:%S",
-                            level=logging.INFO)
-        logging.error("pipdate can only {}run with admin permissions{}.\nTry 'sudo python pipdate.py'".format(
-            COLOR.format(BOLD, RED), COLOR.format(NORMAL, WHITE)))
         return False
     return True
 
@@ -285,6 +293,8 @@ def pipdate():
             pips.extend([pip for pip in arguments.extra_pip if os.path.isfile(pip)])
 
     if not running_as_root():
+        logging.critical("pipdate can only {}run with admin permissions{}.\n"
+                         "Try 'sudo python pipdate.py'".format(COLOR.format(BOLD, RED), COLOR.format(NORMAL, WHITE)))
         return 1
 
     logging.info("Updating using the following pip versions:")
@@ -313,7 +323,10 @@ def pipdate():
                                                       current_pip, COLOR.format(NORMAL, GREEN)))
 
             # Update all requested packages.
-            batch_update_packages(current_pip, packages_to_update)
+            successfully_iterated_over_everything = batch_update_packages(current_pip, packages_to_update)
+            if not successfully_iterated_over_everything:
+                logging.error("Update aborted...")
+                return 1  # Abort and exit.
 
     logging.info("Done! :)")
     return 0

@@ -6,7 +6,7 @@ import mock
 from pipdate import *
 import unittest2 as unittest
 
-__version__ = '1.05'
+__version__ = '1.06'
 __last_updated__ = '04/10/2016'
 __author__ = 'just-another-user'
 
@@ -70,14 +70,14 @@ class ListOutdatedPackagesTestSuite(unittest.TestCase):
     and returns a list of packages names.
     """
 
-    outdated_packages = "pyasn1 (0.1.9)\n" \
-                        "pycparser (2.14)\n" \
-                        "pycups (1.9.73)\n" \
-                        "pycurl (7.43.0)\n" \
-                        "Pygments (2.1.3)\n" \
-                        "pygobject (3.20.0)\n" \
-                        "PyJWT (1.4.0)\n"
-    outdated_packages_expected_result = [pkg.split()[0] for pkg in outdated_packages.split('\n')
+    outdated_packages = b"pyasn1 (0.1.9)\n" \
+                        b"pycparser (2.14)\n" \
+                        b"pycups (1.9.73)\n" \
+                        b"pycurl (7.43.0)\n" \
+                        b"Pygments (2.1.3)\n" \
+                        b"pygobject (3.20.0)\n" \
+                        b"PyJWT (1.4.0)\n"
+    outdated_packages_expected_result = [pkg.split()[0] for pkg in outdated_packages.decode('utf-8').split('\n')
                                          if pkg.split() and pkg.split()[0]]
 
     @mock.patch('pipdate.subprocess.Popen')
@@ -97,7 +97,7 @@ class ListOutdatedPackagesTestSuite(unittest.TestCase):
         Expected result is a list occupied with packages names.
         :param mock_popen: MagicMock to replace the subprocess.Popen method. Supplied byt the patch.
         """
-        mock_popen.return_value.communicate.return_value = (self.outdated_packages, "")
+        mock_popen.return_value.communicate.return_value = (self.outdated_packages, b"")
         returned_packages = list_outdated_packages('pip')
         self.assertEqual(self.outdated_packages_expected_result, returned_packages)
 
@@ -108,7 +108,7 @@ class ListOutdatedPackagesTestSuite(unittest.TestCase):
         Expected result is an empty list.
         :param mock_popen: MagicMock to replace the subprocess.Popen method. Supplied byt the patch.
         """
-        mock_popen.return_value.communicate.return_value = ("\n\n\n\n\n\n\n  ", "")
+        mock_popen.return_value.communicate.return_value = (b"\n\n\n\n\n\n\n  ", b"")
         self.assertEqual([], list_outdated_packages('pip'))
 
     @mock.patch('pipdate.subprocess.Popen')
@@ -119,7 +119,8 @@ class ListOutdatedPackagesTestSuite(unittest.TestCase):
         Expected result is a list occupied with one package name.
         :param mock_popen: MagicMock to replace the subprocess.Popen method. Supplied byt the patch.
         """
-        mock_popen.return_value.communicate.return_value = (self.outdated_packages.split('\n')[0] + "   ", "")
+        mock_popen.return_value.communicate.return_value = (
+            bytes(self.outdated_packages_expected_result[0] + "   ", 'utf-8'), b"")
         self.assertEqual([self.outdated_packages_expected_result[0]], list_outdated_packages('pip'))
 
     @mock.patch('pipdate.subprocess.Popen')
@@ -150,7 +151,7 @@ class UpdatePackageTestSuite(unittest.TestCase):
         Expected result is 0, meaning package was updated.
         :param mock_popen: MagicMock of subprocess.Popen. Provided by the patch.
         """
-        mock_popen.return_value.communicate.return_value = ("Successfully installed", "")
+        mock_popen.return_value.communicate.return_value = (b"Successfully installed", b"")
         self.assertEqual(0, update_package('pip', 'package'))
 
     @mock.patch('pipdate.subprocess.Popen')
@@ -163,7 +164,7 @@ class UpdatePackageTestSuite(unittest.TestCase):
         :param mock_popen: MagicMock of subprocess.Popen. Provided by the patch.
         """
         mock_popen.return_value.wait.return_value = 0
-        mock_popen.return_value.communicate.return_value = ("Successfully installed", "Inappropriate ioctl")
+        mock_popen.return_value.communicate.return_value = (b"Successfully installed", b"Inappropriate ioctl")
         self.assertEqual(0, update_package('pip', 'package'))
 
     @mock.patch('pipdate.subprocess.Popen')
@@ -175,7 +176,7 @@ class UpdatePackageTestSuite(unittest.TestCase):
         :param mock_popen: MagicMock of subprocess.Popen. Provided by the patch.
         """
         mock_popen.return_value.wait.return_value = 0
-        mock_popen.return_value.communicate.return_value = ("Successfully installed", "some error")
+        mock_popen.return_value.communicate.return_value = (b"Successfully installed", b"some error")
         self.assertEqual(2, update_package('pip', 'package'))
 
     @mock.patch('pipdate.subprocess.Popen')
@@ -187,7 +188,7 @@ class UpdatePackageTestSuite(unittest.TestCase):
         :param mock_popen: MagicMock of subprocess.Popen. Provided by the patch.
         """
         mock_popen.return_value.wait.return_value = 0
-        mock_popen.return_value.communicate.return_value = ("already up-to-date", "")
+        mock_popen.return_value.communicate.return_value = (b"already up-to-date", b"")
         self.assertEqual(1, update_package('pip', 'package'))
 
     @mock.patch('pipdate.subprocess.Popen')
@@ -199,7 +200,7 @@ class UpdatePackageTestSuite(unittest.TestCase):
         :param mock_popen: MagicMock of subprocess.Popen. Provided by the patch.
         """
         mock_popen.return_value.wait.return_value = 0
-        mock_popen.return_value.communicate.return_value = ("", "")
+        mock_popen.return_value.communicate.return_value = (b"", b"")
         self.assertEqual(2, update_package('pip', 'package'))
 
     @mock.patch('pipdate.subprocess.Popen')
@@ -222,12 +223,13 @@ class UpdatePackageTestSuite(unittest.TestCase):
         :param mock_popen: MagicMock of subprocess.Popen. Provided by the patch.
         """
         mock_popen.return_value.wait.return_value = 0
-        mock_popen.return_value.communicate.return_value = ("Successfully installed", "")
+        mock_popen.return_value.communicate.return_value = (b"Successfully installed", b"")
         update_package.__globals__["nix"] = True
         self.assertEqual(0, update_package('pip', 'package'))
         mock_popen.assert_called_with(['sudo', '-i', 'pip', 'install', '-U', 'package'], stderr=-1, stdout=-1)
 
 
+# TODO: Add missing scenarios; Adjust to test against newly added return values.
 # noinspection PyPep8Naming
 class BatchUpdatePackagesTestSuite(unittest.TestCase):
     """
@@ -301,7 +303,7 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
         mock_logging.error.assert_called_with(second_expected_message)
 
 
-# TODO: Finish PipdateTestSuite
+# TODO: Add missing scenarios
 # noinspection PyTypeChecker,PyPep8Naming
 class PipdateTestSuite(unittest.TestCase):
 

@@ -20,8 +20,8 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.19'
-__last_updated__ = '30/10/2016'
+__version__ = '1.20'
+__last_updated__ = '04/11/2016'
 __author__ = 'just-another-user'
 
 # **********************************************************************
@@ -149,7 +149,8 @@ def list_outdated_packages(pip):
     # Run the command and put output in tmp_packs
     logging.debug("Running {} list --outdated".format(pip))
     try:
-        outdated_packages = subprocess.Popen([pip, "list", "--outdated"],
+        # Added --format=legacy to comply with pip v9+
+        outdated_packages = subprocess.Popen([pip, "list", "--outdated", "--format=legacy"],
                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
     except Exception as exp:
         logging.error("Exception encountered while listing outdated packages with {}. {}".format(pip, exp))
@@ -270,21 +271,28 @@ def create_argparser():     # pragma: no cover
     """
     parser = argparse.ArgumentParser(description="pipdate - Update all outdated packages for all installed "
                                                  "Python versions in a single command.")
+
     parser.add_argument("-v", "--verbosity", action="store_true",
                         help="Be more verbose.")
+
     parser.add_argument("-d", "--display-pips", action="store_true",
                         help="Only show the available pips on the system. "
                              "This option does not require root/admin permission.")
+
     parser.add_argument("-p", "--packages", metavar="PACKAGE", nargs='+', action="store", type=str,
                         help="Packages to specifically update or install (at least one). "
                              "The same as running 'pip install -U <package>'")
+
     parser.add_argument("-a", "--add-pip", metavar="PIP", dest='extra_pip', nargs="+", action="store", type=str,
                         help="Add this pip executable to the list and use it to update outdated packages.")
+
     parser.add_argument("-j", "--just-these-pips", metavar="PIP", dest="just_these_pips", nargs="+", action="store",
                         type=str, help="Update outdated packages using just these pip executables (at least one).")
+
     parser.add_argument("-i", "--ignore-packages", metavar="PACKAGE", dest="ignore_packages", nargs="+",
                         action="store", type=str,
                         help="Update outdated packages using just these pip executables (at least one).")
+
     return parser.parse_args()
 
 

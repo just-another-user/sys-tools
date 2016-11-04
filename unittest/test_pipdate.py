@@ -5,15 +5,16 @@ Unittesting for pipdate.py
 import mock
 from pipdate import *
 import unittest2 as unittest
+import pytest
 
-__version__ = '1.06'
-__last_updated__ = '04/10/2016'
+__version__ = '1.07'
+__last_updated__ = '23/10/2016'
 __author__ = 'just-another-user'
 
 
 class RunningAsRootTestSuite(unittest.TestCase):
     """
-    The function running_as_root should return True whenever it is run with root/admin privleges.
+    The function running_as_root should return True whenever it is run with root/admin privileges.
     It currently only handles Windows and *nix systems:
      - Admin on Windows is denoted by ctypes.windll.Shell32.IsUserAnAdmin() returning 1.
      - Root on *nix is denoted by os.getuid() returning 0.
@@ -34,7 +35,7 @@ class RunningAsRootTestSuite(unittest.TestCase):
     @mock.patch('pipdate.os.name', 'nt')
     def test_no_root_on_windows_return_false(self, mock_ctypes):
         """
-        Running on Windows without admin privleges.
+        Running on Windows without admin privileges.
         Expected result is False.
         :param mock_ctypes: MagicMock to replace the ctypes module. Supplied by the patch.
         """
@@ -56,7 +57,7 @@ class RunningAsRootTestSuite(unittest.TestCase):
     @mock.patch('pipdate.os.name', 'nt')
     def test_with_root_on_windows_return_true(self, mock_ctypes):
         """
-        Running on Windows with admin privleges.
+        Running on Windows with admin privileges.
         Expected result is True.
         :param mock_ctypes: MagicMock to replace the ctypes module. Supplied by the patch.
         """
@@ -70,6 +71,7 @@ class ListOutdatedPackagesTestSuite(unittest.TestCase):
     and returns a list of packages names.
     """
 
+    # noinspection SpellCheckingInspection
     outdated_packages = b"pyasn1 (0.1.9)\n" \
                         b"pycparser (2.14)\n" \
                         b"pycups (1.9.73)\n" \
@@ -263,7 +265,7 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
     @mock.patch('pipdate.update_package')
     def test_error_occured_while_trying_to_update_print_failure_on_log_entry(self, mock_update_package, mock_logging):
         """
-        Test a scenario with an error occuring and failing the update.
+        Test a scenario with an error occurring and failing the update.
         Assert that the correct message was logged using ERROR errorlevel.
         """
         mock_update_package.return_value = 2
@@ -287,7 +289,7 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
     @mock.patch('pipdate.update_package')
     def test_something_went_wrong_print_failure_on_log_entry(self, mock_update_package, mock_logging):
         """
-        Test a scenario where an unknown error occured and the package wasn't updated.
+        Test a scenario where an unknown error occurred and the package wasn't updated.
         Assert that the correct message was logged using ERROR errorlevel.
         """
         # Test when an unexpected value is returned from update_package.
@@ -303,7 +305,7 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
         mock_logging.error.assert_called_with(second_expected_message)
 
 
-# TODO: Add missing scenarios
+# TODO: Add missing scenarios - such as asserting pip is in the front of the outdated list, if it appears there.
 # noinspection PyTypeChecker,PyPep8Naming
 class PipdateTestSuite(unittest.TestCase):
 
@@ -326,7 +328,7 @@ class PipdateTestSuite(unittest.TestCase):
         mock_args.return_value.packages = None
 
         self.assertEqual(1, pipdate())
-        mock_logging.basicConfig.assert_any_call(format=mock.ANY, datefmt=mock.ANY, level=logging.INFO)
+        mock_logging.basicConfig.assert_any_call(format=mock.ANY, level=logging.INFO)
 
     @mock.patch('pipdate.create_argparser')
     @mock.patch('pipdate.logging')
@@ -340,7 +342,7 @@ class PipdateTestSuite(unittest.TestCase):
         mock_args.return_value.packages = None
 
         self.assertEqual(1, pipdate())
-        mock_logging.basicConfig.assert_any_call(format=mock.ANY, datefmt=mock.ANY, level=logging.DEBUG)
+        mock_logging.basicConfig.assert_any_call(format=mock.ANY, level=logging.DEBUG)
 
     @mock.patch('pipdate.running_as_root', mock.MagicMock())
     @mock.patch('pipdate.os.path.isfile', mock.MagicMock())
@@ -391,25 +393,6 @@ class PipdateTestSuite(unittest.TestCase):
         self.assertEqual(0, pipdate())
         mock_root.assert_not_called()
 
-    # noinspection PyUnusedLocal
-    @mock.patch('pipdate.running_as_root', mock.MagicMock())
-    @mock.patch('pipdate.logging')
-    @mock.patch('pipdate.batch_update_packages', mock.MagicMock())
-    @mock.patch('pipdate.update_package')
-    @mock.patch('pipdate.get_pip_paths')
-    @mock.patch('pipdate.create_argparser')
-    def test_pip_was_successfully_updated_log_message_displayed(self, mock_args, mock_gpp, mock_up, mock_log):
-        mock_gpp.return_value = ['pip']
-        mock_args.return_value.just_these_pips = False
-        mock_args.return_value.display_pips = False
-        mock_args.return_value.extra_pip = False
-        mock_args.return_value.verbosity = False
-        mock_args.return_value.packages = ["pkg"]
-        mock_up.return_value = 0  # Pip updated.
-
-        self.assertEqual(0, pipdate())
-        mock_log.info.assert_any_call('pip updated!')
-
     @mock.patch('pipdate.running_as_root', mock.MagicMock())
     @mock.patch('pipdate.logging')
     @mock.patch('pipdate.list_outdated_packages')
@@ -430,4 +413,4 @@ class PipdateTestSuite(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    pytest.main()

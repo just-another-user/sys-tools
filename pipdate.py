@@ -11,11 +11,6 @@ Basic use:
     $sudo python pipdate.py
 
  * Pipdate must have root/admin permission in order to run pip install.
-
-
-TODO:
-  - Add: Support for other OSs.
-  - Add: Log level for output, and a command-line option to turn it on and show the output.
 """
 import argparse
 import logging
@@ -25,8 +20,8 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.15'
-__last_updated__ = '04/10/2016'
+__version__ = '1.20'
+__last_updated__ = '04/11/2016'
 __author__ = 'just-another-user'
 
 # **********************************************************************
@@ -39,15 +34,12 @@ NORMAL, BOLD, UNDERLINED = range(3)
 # **********************************************************************
 
 
-# noinspection PyTypeChecker
-def get_pip_paths():        # pragma: no cover
+def get_nix_paths():
     """
-    Try and locate available python installations which contain the pip script and return their locations.
-
-    :return:
-    :rtype:
+    Find the pip executables in *nix systems by searching known installation paths.
+    :return: List of pip executables found.
+    :rtype: list
     """
-
     def is_float(num):
         """
         Check if a string is a float.
@@ -62,61 +54,88 @@ def get_pip_paths():        # pragma: no cover
         except:
             pass
         return False
-    # Possible locations for pip script, with os.sep at the end.
+
+    # Possible locations for pip executables.
     known_nix_paths = ['/usr/local/bin', '/usr/bin']
 
     pip_paths = []
-    if nix:
-        for path in known_nix_paths:
-            _, _, files = next(os.walk(path))
-            # Get all files which start with pip.
-            pip_paths += [os.sep.join([path, _file]) for _file in files
-                          if _file.lower().startswith('pip')
-                          and is_float(_file[3:])
-                          and os.path.isfile(os.sep.join([path, _file]))
-                          and os.sep.join([path, _file]) not in pip_paths]
-        # ***
-        # In *nix systems there might be a couple of files referencing the same files:
-        # e.g. 'pip2', 'pip2.7', 'pip', etc...
-        # In order to avoid these duplicates, only keep the unique files (i.e. 'pip2.7' and not the rest).
+    for path in known_nix_paths:
+        _, _, files = next(os.walk(path))
+        # Get all files which start with pip.
+        pip_paths += [os.sep.join([path, _file]) for _file in files
+                      if _file.lower().startswith('pip')
+                      and is_float(_file[3:])
+                      and os.path.isfile(os.sep.join([path, _file]))
+                      and os.sep.join([path, _file]) not in pip_paths]
+    # ***
+    # In *nix systems there might be a couple of files referencing the same files:
+    # e.g. 'pip2', 'pip2.7', 'pip', etc...
+    # In order to avoid these duplicates, only keep the unique files (i.e. 'pip2.7' and not the rest).
 
-        #  Iterate over a *copy* of the list so that it could be manipulated as well.
-        pip_paths = sorted(list(set(pip_paths[::])))
-        for pip in pip_paths[::]:
-            for _pip in pip_paths[pip_paths.index(pip) + 1:]:
-                if not pip == _pip and pip.split(os.sep)[-1] in _pip.split(os.sep)[-1]:
-                    pip_paths.remove(pip)
-                    break
-
-    elif 'nt' in os.name:
-        try:
-            # First, add all available drives on the system to the available locations.
-            available_locations = [os.sep.join([drive + ":"]) for drive in list(ascii_uppercase)
-                                   if os.path.isdir(os.sep.join([drive + ':', ""]))]
-
-            # Then, add Program Files folders as possible locations:
-            pf = ["Program Files", "Program Files (x86)"]
-            available_locations += [os.sep.join([drive, _pf]) for drive in available_locations for _pf in pf if
-                                    os.path.isdir(os.sep.join([drive, _pf]))]
-
-            # Now add specific locations:
-            specific_locations = [os.sep.join([os.environ["LOCALAPPDATA"], "Programs", "Python"])]
-            available_locations += [loc for loc in specific_locations if os.path.isdir(loc)]
-
-            # Search all of the available locations for folders with 'python' in their name, and see if they contain the
-            # pip script in the expected subfolder.
-            pip_paths = []
-            for path in available_locations:
-                _, dirs, _ = next(os.walk(path + os.sep))  # Get only the folders directly under the searched path.
-                for _dir in [a_dir for a_dir in dirs if 'python' in a_dir.lower()]:
-                    if os.path.isfile(os.sep.join([path, _dir, "Scripts", "pip.exe"])):
-                        pip_paths.append(os.sep.join([path, _dir, "Scripts", "pip.exe"]))
-        except:
-            pass
-
-    # More os support <should come here>.
+    #  Iterate over a *copy* of the list so that it could be manipulated as well.
+    pip_paths = sorted(list(set(pip_paths[::])))
+    for pip in pip_paths[::]:
+        for _pip in pip_paths[pip_paths.index(pip) + 1:]:
+            if not pip == _pip and pip.split(os.sep)[-1] in _pip.split(os.sep)[-1]:
+                pip_paths.remove(pip)
+                break
 
     return pip_paths
+
+
+def get_win_paths():
+    """
+    Find the pip executables in Windows systems by searching known installation paths.
+    :return: List of pip executables found.
+    :rtype: list
+    """
+    pip_paths = []
+    try:
+        # First, add all available drives on the system to the available locations.
+        available_locations = [os.sep.join(["{0}:".format(drive)]) for drive in list(ascii_uppercase)
+                               if os.path.isdir(os.sep.join(['{0}:'.format(drive), ""]))]
+
+        # Then, add Program Files folders as possible locations:
+        pf = ["Program Files", "Program Files (x86)"]
+        available_locations += [os.sep.join([drive, _pf]) for drive in available_locations for _pf in pf if
+                                os.path.isdir(os.sep.join([drive, _pf]))]
+
+        # Now add specific locations:
+        specific_locations = [os.sep.join([os.environ["LOCALAPPDATA"], "Programs", "Python"])]
+        available_locations += [loc for loc in specific_locations if os.path.isdir(loc)]
+
+        # Search all of the available locations for folders with 'python' in their name, and see if they contain the
+        # pip script in the expected subfolder.
+        for path in available_locations:
+            _, dirs, _ = next(os.walk(path + os.sep))  # Get only the folders directly under the searched path.
+            for _dir in [a_dir for a_dir in dirs if 'python' in a_dir.lower()]:
+                if os.path.isfile(os.sep.join([path, _dir, "Scripts", "pip.exe"])):
+                    pip_paths.append(os.sep.join([path, _dir, "Scripts", "pip.exe"]))
+    except:
+        pass
+
+    return pip_paths
+
+
+# noinspection PyTypeChecker
+def get_pip_paths():        # pragma: no cover
+    """
+    Try and locate available python installations which contain the pip script and return their locations.
+
+    :return:
+    :rtype:
+    """
+
+    if nix:
+        return get_nix_paths()
+    elif 'nt' in os.name:
+        return get_win_paths()
+
+    logging.warning("Running on an unsupported system. "
+                    "Please use the -a or -j option point to the executables' locations.")
+    return []
+
+    # More os support <should come here>.
 
 
 def list_outdated_packages(pip):
@@ -130,7 +149,8 @@ def list_outdated_packages(pip):
     # Run the command and put output in tmp_packs
     logging.debug("Running {} list --outdated".format(pip))
     try:
-        outdated_packages = subprocess.Popen([pip, "list", "--outdated"],
+        # Added --format=legacy to comply with pip v9+
+        outdated_packages = subprocess.Popen([pip, "list", "--outdated", "--format=legacy"],
                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
     except Exception as exp:
         logging.error("Exception encountered while listing outdated packages with {}. {}".format(pip, exp))
@@ -233,7 +253,7 @@ def batch_update_packages(pip, pkg_list):
 
 def running_as_root():
     """
-    Checks whether the script is running with root/admin privleges.
+    Checks whether the script is running with root/admin privileges.
     :return: True if running as root; False otherwise.
     :rtype: bool
     """
@@ -251,17 +271,28 @@ def create_argparser():     # pragma: no cover
     """
     parser = argparse.ArgumentParser(description="pipdate - Update all outdated packages for all installed "
                                                  "Python versions in a single command.")
+
     parser.add_argument("-v", "--verbosity", action="store_true",
                         help="Be more verbose.")
+
     parser.add_argument("-d", "--display-pips", action="store_true",
-                        help="Only show the available pips on the system.")
+                        help="Only show the available pips on the system. "
+                             "This option does not require root/admin permission.")
+
     parser.add_argument("-p", "--packages", metavar="PACKAGE", nargs='+', action="store", type=str,
                         help="Packages to specifically update or install (at least one). "
                              "The same as running 'pip install -U <package>'")
+
     parser.add_argument("-a", "--add-pip", metavar="PIP", dest='extra_pip', nargs="+", action="store", type=str,
-                        help="Add this pip to the list and use it to update outdated packages.")
+                        help="Add this pip executable to the list and use it to update outdated packages.")
+
     parser.add_argument("-j", "--just-these-pips", metavar="PIP", dest="just_these_pips", nargs="+", action="store",
-                        type=str, help="Update outdated packages using just these pips (at least one).")
+                        type=str, help="Update outdated packages using just these pip executables (at least one).")
+
+    parser.add_argument("-i", "--ignore-packages", metavar="PACKAGE", dest="ignore_packages", nargs="+",
+                        action="store", type=str,
+                        help="Update outdated packages using just these pip executables (at least one).")
+
     return parser.parse_args()
 
 
@@ -275,10 +306,9 @@ def pipdate():
     arguments = create_argparser()
     logging.basicConfig(
         format="{}%(message)s".format(COLOR.format(NORMAL, WHITE)),
-        datefmt="%Y-%m-%d %H:%M:%S",
         level=logging.DEBUG if arguments.verbosity else logging.INFO)
 
-    logging.info("pipdate v.{}".format(__version__))
+    logging.info("pipdate v{}".format(__version__))
     logging.info("")
 
     # Set OS dependent paths to the pip script.
@@ -296,12 +326,15 @@ def pipdate():
                 for pip in pips:
                     logging.info("\t{}".format(pip))
                 return 0
+            else:
+                logging.warning("Could not find any pip executables in the system. Aborting...")
+                return 1
 
         if arguments.extra_pip:
             pips.extend([pip for pip in arguments.extra_pip if os.path.isfile(pip)])
 
     if not running_as_root():
-        logging.critical("pipdate can only {}run with admin permissions{}.\n"
+        logging.critical("pipdate can only {}run with root/admin permissions{}.\n"
                          "Try 'sudo python pipdate.py'".format(COLOR.format(BOLD, RED), COLOR.format(NORMAL, WHITE)))
         return 1
 
@@ -312,23 +345,26 @@ def pipdate():
     # User specified packages for update.
     packages = list(arguments.packages) if arguments.packages else []
 
+    # Remove user specified packages from the list of packages to update.
+    if arguments.ignore_packages:
+        logging.debug("Ignoring the following packages: {}".format(arguments.ignore_packages))
+        packages = [pkg for pkg in packages[::] if pkg not in arguments.ignore_package]
+
     for current_pip in pips:
 
         # If there are no specific packages to update - get a list of outdated packages.
         if not packages:
             logging.debug("")
-            logging.info("Retreiving outdated packages for {}{}".format(COLOR.format(NORMAL, BLUE), current_pip))
+            logging.info("Retrieving outdated packages for {}{}".format(COLOR.format(NORMAL, BLUE), current_pip))
         packages_to_update = packages if packages else list_outdated_packages(current_pip)
         if not packages_to_update:
             logging.info("{}No outdated packages found!".format(COLOR.format(NORMAL, YELLOW)))
         else:
-            # Try to update pip first.
-            logging.debug("")
-            logging.debug("Making sure {} is up-to-date...".format(current_pip))
-            updated_pip = update_package(current_pip, 'pip')
-            if updated_pip == 0:  # Print a message only if succeeded in updating pip.
-                logging.info("{}{}{} updated!".format(COLOR.format(NORMAL, GREEN),
-                                                      current_pip, COLOR.format(NORMAL, GREEN)))
+            if 'pip' in packages_to_update:
+                # Move pip to the front of the list so all further packages will be installed using
+                # the newer version.
+                packages_to_update.remove('pip')
+                packages_to_update.insert(0, 'pip')
 
             # Update all requested packages.
             successfully_iterated_over_everything = batch_update_packages(current_pip, packages_to_update)

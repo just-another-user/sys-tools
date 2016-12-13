@@ -1,7 +1,7 @@
 #!/bin/bash
 # ############################################# #
 #
-# first_install.sh (v0.11)
+# first_install.sh (v0.12)
 # by just-another-user
 #
 # Description:
@@ -16,15 +16,15 @@ sudo apt install -y python python-dev python3 python3-dev python-pip python3-pip
 
 # Dropbox
 sudo apt-key adv --keyserver pgp.mit.edu --recv-keys 5044912E
-sudo sh -c 'echo "deb http://linux.dropbox.com/ubuntu/ xenial main" >> /etc/apt/sources.list.d/dropbox.list'
+sudo sh -c 'echo "deb http://linux.dropbox.com/ubuntu/ yakkety main" >> /etc/apt/sources.list.d/dropbox.list'
 
 # Pycharm
 sudo add-apt-repository ppa:mystic-mirage/pycharm
-sudo sh -c 'echo "deb http://ppa.launchpad.net/mystic-mirage/pycharm/ubuntu xenial main" >> /etc/apt/sources.list.d/pycharm.list'
+sudo sh -c 'echo "deb http://ppa.launchpad.net/mystic-mirage/pycharm/ubuntu yakkety main" >> /etc/apt/sources.list.d/pycharm.list'
 
 # Kivy
 sudo add-apt-repository ppa:kivy-team/kivy
-sudo sh -c 'echo "deb http://ppa.launchpad.net/kivy-team/kivy/ubuntu xenial main" >> /etc/apt/sources.list.d/kivy.list'
+sudo sh -c 'echo "deb http://ppa.launchpad.net/kivy-team/kivy/ubuntu yakkety main" >> /etc/apt/sources.list.d/kivy.list'
 
 sudo apt update
 sudo apt install -y dropbox pycharm-community python-kivy python3-kivy virtualbox chromium-browser

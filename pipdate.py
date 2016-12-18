@@ -20,9 +20,12 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.20'
-__last_updated__ = '04/11/2016'
+__version__ = '1.202'
+__last_updated__ = '18/12/2016'
 __author__ = 'just-another-user'
+
+
+# TODO: - Implement timeout functionality.
 
 # **********************************************************************
 # Initiated global vars and logger.
@@ -37,8 +40,7 @@ NORMAL, BOLD, UNDERLINED = range(3)
 def get_nix_paths():
     """
     Find the pip executables in *nix systems by searching known installation paths.
-    :return: List of pip executables found.
-    :rtype: list
+    :return list: All pip executables found.
     """
     def is_float(num):
         """
@@ -52,11 +54,10 @@ def get_nix_paths():
             assert isinstance(float(num), float)
             return True
         except:
-            pass
-        return False
+            return False
 
     # Possible locations for pip executables.
-    known_nix_paths = ['/usr/local/bin', '/usr/bin']
+    known_nix_paths = ['/usr/local/bin', '/usr/bin', '/bin']
 
     pip_paths = []
     for path in known_nix_paths:
@@ -67,10 +68,11 @@ def get_nix_paths():
                       and is_float(_file[3:])
                       and os.path.isfile(os.sep.join([path, _file]))
                       and os.sep.join([path, _file]) not in pip_paths]
+
     # ***
     # In *nix systems there might be a couple of files referencing the same files:
     # e.g. 'pip2', 'pip2.7', 'pip', etc...
-    # In order to avoid these duplicates, only keep the unique files (i.e. 'pip2.7' and not the rest).
+    # In order to avoid these duplicates, only keep the unique filenames (i.e. 'pip2.7' and not the rest).
 
     #  Iterate over a *copy* of the list so that it could be manipulated as well.
     pip_paths = sorted(list(set(pip_paths[::])))
@@ -86,8 +88,7 @@ def get_nix_paths():
 def get_win_paths():
     """
     Find the pip executables in Windows systems by searching known installation paths.
-    :return: List of pip executables found.
-    :rtype: list
+    :return list: All pip executables found.
     """
     pip_paths = []
     try:
@@ -122,8 +123,7 @@ def get_pip_paths():        # pragma: no cover
     """
     Try and locate available python installations which contain the pip script and return their locations.
 
-    :return:
-    :rtype:
+    :return list: Available paths according to discovered system; Empty list if running on an unsupported system.
     """
 
     if nix:
@@ -138,22 +138,33 @@ def get_pip_paths():        # pragma: no cover
     # More os support <should come here>.
 
 
+class Pip(object):
+    """
+    Work in progress.
+    The objective is to make every available pip a class.
+    Upon initialization, the instance will use threads to check for outdated packages.
+    Each Pip instance will update its own outdated packages.
+    """
+
+    def __init__(self, pip):
+        self.pip = pip
+        self.outdated_packages = []
+
+
 def list_outdated_packages(pip):
     """
     Get a list of outdated pip packages.
-    :param pip: Path to the pip script.
-    :type pip: str
-    :return: A list of outdated python packages.
-    :rtype: list
+    :param str pip: Path to the pip script.
+    :return list: Outdated Python packages.
     """
     # Run the command and put output in tmp_packs
-    logging.debug("Running {} list --outdated".format(pip))
+    logging.debug("[{0}] Running {0} list --outdated".format(pip))
     try:
         # Added --format=legacy to comply with pip v9+
-        outdated_packages = subprocess.Popen([pip, "list", "--outdated", "--format=legacy"],
+        outdated_packages = subprocess.Popen([pip, "list", "--outdated"],
                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
     except Exception as exp:
-        logging.error("Exception encountered while listing outdated packages with {}. {}".format(pip, exp))
+        logging.error("[{}] Exception encountered while listing outdated packages. {}".format(pip, exp))
         return []
 
     # Outdated packages come in the form of <package_name> <version>\n
@@ -170,14 +181,11 @@ def list_outdated_packages(pip):
 def update_package(pip, package):
     """
     Update a pip package.
-    :param pip: The path to pip executable.
-    :type pip: str
-    :param package: Name of the package to update.
-    :type package: str
-    :return: 0 successfully updated package,
-             1 if package already up to date,
-             2 unknown error.
-    :rtype: int
+    :param str pip: The path to pip executable.
+    :param str package: Name of the package to update.
+    :return int: 0 successfully updated package,
+                 1 if package already up to date,
+                 2 unknown error.
     """
     update_command = [pip, "install", "-U", package]
 
@@ -186,67 +194,67 @@ def update_package(pip, package):
     try:
         update_process = subprocess.Popen(update_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except Exception as exp:
-        logging.error("An exception was raised while updating {} using {}. {}".format(package, pip, exp))
+        logging.error("[{}] An exception was raised while updating {}. {}".format(pip, package, exp))
         return 2
 
     return_code = update_process.wait()
     output = tuple(op.decode('utf-8') for op in update_process.communicate())  # Read process' output
     if not return_code and len(output) == 2 and 'Successfully installed' in output[0] and \
             (not output[1] or 'Inappropriate ioctl' in output[1]):
-        logging.debug("Successfully updated {} with {}".format(package, pip))
+        logging.debug("[{}] Successfully updated {}".format(pip, package))
         return 0
     elif output and len(output) == 2:
         if not output[1]:
             if output[0] and "already up-to-date" in output[0]:
-                logging.debug("({}) {} is already up-to-date".format(pip, package))
+                logging.debug("[{}] {} is already up-to-date".format(pip, package))
                 return 1
             elif output[0] and 'Successfully installed' in output[0]:
-                logging.debug("Successfully updated {} with {}".format(package, pip))
+                logging.debug("[{}] Successfully updated {}.".format(pip, package))
                 return 0
         elif 'sudo' in output[1]:
-            logging.debug("Cannot update without root/admin permissions!")
+            logging.debug("[{}] Cannot update without root/admin permissions!".format(pip))
             return 3
 
-    logging.debug("Couldn't update {} using {}.\n{}".format(package, pip,
-                                                            output[1] if output and len(output) == 2 else ""))
+    logging.debug("[{}] Couldn't update {}.\n{}".format(pip, package,
+                                                        output[1] if output and len(output) == 2 else ""))
     return 2  # Return code is not 0 but there's no output.
 
 
 def batch_update_packages(pip, pkg_list):
     """
     Update one or more pip packages.
-    :param pip: The path to pip executable.
-    :type pip: str
-    :param pkg_list: List of names of packages to update.
-    :type pkg_list: list
-    :return: True if successfully iterated over all the packages; False otherwise.
-    :rtype: bool
+    :param str pip: The path to pip executable.
+    :param list pkg_list: Names of packages to update.
+    :return bool: True if successfully iterated over all the packages; False otherwise.
     """
-    logging.info("The following {}package{} will be updated: {}".format("{} ".format(len(pkg_list))
-                                                                        if len(pkg_list) > 1 else '',
-                                                                        "s" if len(pkg_list) > 1 else "",
-                                                                        " ".join(pkg_list)))
+    logging.info("[{}]".format(pip))
+    logging.info("[{}] The following {}package{} will be updated: {}".format(pip,
+                                                                             "{} ".format(len(pkg_list))
+                                                                             if len(pkg_list) > 1 else '',
+                                                                             "s" if len(pkg_list) > 1 else "",
+                                                                             " ".join(pkg_list)))
     for pkg in pkg_list:
-        logging.info("Updating {}".format(pkg))
+        logging.info("[{}] Updating {}".format(pip, pkg))
         try:
             updated = update_package(pip, pkg)
         except:
             updated = -1
         if updated == 0:
-            logging.info("{}{}{} updated {}successfully.".format(
-                COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, GREEN)))
+            logging.info("[{}] {}{}{} updated {}successfully.".format(
+                pip, COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, GREEN)))
         elif updated == 1:
-            logging.warning("{}{}{} {}already up-to-date.".format(
-                COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, YELLOW)))
+            logging.warning("[{}] {}{}{} {}already up-to-date.".format(
+                pip, COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, YELLOW)))
         elif updated == 2:
-            logging.error("{}An error was encountered while trying to update {}{}{} using {}.".format(
-                COLOR.format(NORMAL, RED), COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, RED), pip))
+            logging.error("[{}] {}An error was encountered while trying to update {}{}{}.".format(
+                pip, COLOR.format(NORMAL, RED), COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, RED)))
         elif updated == 3:
-            logging.error("{}Cannot update packages without root/admin permissions!".format(COLOR.format(NORMAL, RED)))
+            logging.error("[{}] {}Cannot update packages without root/admin permissions!".format(
+                pip, COLOR.format(NORMAL, RED)))
             return False
         else:
-            logging.error("{}Something went wrong while updating {} using {}.".format(
-                COLOR.format(BOLD, RED), pkg, pip))
+            logging.error("[{}] {}Something went wrong while updating {}.".format(
+                pip, COLOR.format(BOLD, RED), pkg, pip))
             return False
     return True
 
@@ -254,8 +262,7 @@ def batch_update_packages(pip, pkg_list):
 def running_as_root():
     """
     Checks whether the script is running with root/admin privileges.
-    :return: True if running as root; False otherwise.
-    :rtype: bool
+    :return bool: True if running as root; False otherwise.
     """
     if ('nt' not in os.name and not os.getuid() == 0) or \
             ('nt' in os.name and 'windll' in dir(ctypes) and not ctypes.windll.Shell32.IsUserAnAdmin() == 1):
@@ -266,8 +273,7 @@ def running_as_root():
 def create_argparser():     # pragma: no cover
     """
     Create an argument parser for pipdate.
-    :return: An argument parser.
-    :rtype: argparse.ArgumentParser
+    :return argparse.ArgumentParser: An argument parser.
     """
     parser = argparse.ArgumentParser(description="pipdate - Update all outdated packages for all installed "
                                                  "Python versions in a single command.")
@@ -300,8 +306,7 @@ def create_argparser():     # pragma: no cover
 def pipdate():
     """
     Update packages according to arguments.
-    :return: 0 if successful; 1 otherwise
-    :rtype: int
+    :return int: 0 if successful; 1 otherwise.
     """
     arguments = create_argparser()
     logging.basicConfig(
@@ -355,12 +360,14 @@ def pipdate():
         # If there are no specific packages to update - get a list of outdated packages.
         if not packages:
             logging.debug("")
-            logging.info("Retrieving outdated packages for {}{}".format(COLOR.format(NORMAL, BLUE), current_pip))
+            logging.info("[{}{}] {}Retrieving outdated packages...".format(
+                COLOR.format(NORMAL, BLUE), current_pip, COLOR.format(NORMAL, WHITE)))
         packages_to_update = packages if packages else list_outdated_packages(current_pip)
         if not packages_to_update:
-            logging.info("{}No outdated packages found!".format(COLOR.format(NORMAL, YELLOW)))
+            logging.info("[{}{}] {}No outdated packages found!".format(
+                COLOR.format(NORMAL, BLUE), current_pip, COLOR.format(NORMAL, YELLOW)))
         else:
-            if 'pip' in packages_to_update:
+            if 'pip' in packages_to_update and not packages_to_update.index('pip') == 0:
                 # Move pip to the front of the list so all further packages will be installed using
                 # the newer version.
                 packages_to_update.remove('pip')
@@ -377,4 +384,4 @@ def pipdate():
 
 
 if __name__ == "__main__":
-    sys.exit(pipdate())
+    sys.exit(pipdate())     # Return errorlevel according to successful (0) or unsuccessful (1) operation.

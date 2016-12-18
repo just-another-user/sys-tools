@@ -7,8 +7,8 @@ from pipdate import *
 import unittest2 as unittest
 import pytest
 
-__version__ = '1.07'
-__last_updated__ = '23/10/2016'
+__version__ = '1.08'
+__last_updated__ = '18/12/2016'
 __author__ = 'just-another-user'
 
 
@@ -257,7 +257,7 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
         Assert that the correct message was logged using INFO errorlevel.
         """
         mock_update_package.return_value = 0
-        expected_message = "package updated successfully."
+        expected_message = "[pip] package updated successfully."
         batch_update_packages('pip', ['package'])
         mock_logging.info.assert_called_with(expected_message)
 
@@ -269,7 +269,7 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
         Assert that the correct message was logged using ERROR errorlevel.
         """
         mock_update_package.return_value = 2
-        expected_message = "An error was encountered while trying to update package using pip."
+        expected_message = "[pip] An error was encountered while trying to update package."
         batch_update_packages('pip', ['package'])
         mock_logging.error.assert_called_with(expected_message)
 
@@ -281,7 +281,7 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
         Assert that the correct message was logged using WARNING errorlevel.
         """
         mock_update_package.return_value = 1
-        expected_message = "package already up-to-date."
+        expected_message = "[pip] package already up-to-date."
         batch_update_packages('pip', ['package'])
         mock_logging.warning.assert_called_with(expected_message)
 
@@ -294,13 +294,13 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
         """
         # Test when an unexpected value is returned from update_package.
         mock_update_package.return_value = 8
-        first_expected_message = "Something went wrong while updating package using pip."
+        first_expected_message = "[pip] Something went wrong while updating package."
         batch_update_packages('pip', ['package'])
         mock_logging.error.assert_called_with(first_expected_message)
 
         # Test when an exception is raised by update_package.
         mock_update_package.side_effect = Exception("update_package has raised an Exception.")
-        second_expected_message = "Something went wrong while updating package using pip."
+        second_expected_message = "[pip] Something went wrong while updating package."
         batch_update_packages('pip', ['package'])
         mock_logging.error.assert_called_with(second_expected_message)
 
@@ -409,7 +409,7 @@ class PipdateTestSuite(unittest.TestCase):
         mock_args.packages = []
 
         self.assertEqual(0, pipdate())
-        mock_log.info.assert_any_call('No outdated packages found!')
+        mock_log.info.assert_any_call('[pip] No outdated packages found!')
 
 
 if __name__ == '__main__':

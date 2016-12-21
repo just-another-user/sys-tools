@@ -20,7 +20,7 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.203'
+__version__ = '1.204'
 __last_updated__ = '21/12/2016'
 __author__ = 'just-another-user'
 
@@ -163,6 +163,9 @@ def list_outdated_packages(pip):
         # Added --format=legacy to comply with pip v9+
         outdated_packages = subprocess.Popen([pip, "list", "--outdated"],
                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
+    except KeyboardInterrupt:
+        logging.warning("[{0}] User pressed ctrl+c. Skipping this version...".format(pip))
+        return []
     except Exception as exp:
         logging.error("[{}] Exception encountered while listing outdated packages. {}".format(pip, exp))
         return []

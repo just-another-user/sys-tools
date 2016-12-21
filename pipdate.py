@@ -20,8 +20,8 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.202'
-__last_updated__ = '18/12/2016'
+__version__ = '1.203'
+__last_updated__ = '21/12/2016'
 __author__ = 'just-another-user'
 
 
@@ -185,7 +185,9 @@ def update_package(pip, package):
     :param str package: Name of the package to update.
     :return int: 0 successfully updated package,
                  1 if package already up to date,
-                 2 unknown error.
+                 2 unknown error,
+                 3 update was attempted without root/admin permissions,
+                 4 user has press ctrl+c to skip the update.
     """
     update_command = [pip, "install", "-U", package]
 
@@ -193,11 +195,14 @@ def update_package(pip, package):
         update_command = ['sudo', '-i'] + update_command
     try:
         update_process = subprocess.Popen(update_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return_code = update_process.wait()
+    except KeyboardInterrupt:
+        logging.warning("[{}] User pressed ctrl+c. Skipping {}...".format(pip, package))
+        return 4
     except Exception as exp:
         logging.error("[{}] An exception was raised while updating {}. {}".format(pip, package, exp))
         return 2
 
-    return_code = update_process.wait()
     output = tuple(op.decode('utf-8') for op in update_process.communicate())  # Read process' output
     if not return_code and len(output) == 2 and 'Successfully installed' in output[0] and \
             (not output[1] or 'Inappropriate ioctl' in output[1]):
@@ -243,7 +248,7 @@ def batch_update_packages(pip, pkg_list):
             logging.info("[{}] {}{}{} updated {}successfully.".format(
                 pip, COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, GREEN)))
         elif updated == 1:
-            logging.warning("[{}] {}{}{} {}already up-to-date.".format(
+            logging.info("[{}] {}{}{} {}already up-to-date.".format(
                 pip, COLOR.format(BOLD, BLUE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, YELLOW)))
         elif updated == 2:
             logging.error("[{}] {}An error was encountered while trying to update {}{}{}.".format(
@@ -252,6 +257,9 @@ def batch_update_packages(pip, pkg_list):
             logging.error("[{}] {}Cannot update packages without root/admin permissions!".format(
                 pip, COLOR.format(NORMAL, RED)))
             return False
+        elif updated == 4:
+            # Warning already printed inside update_package().
+            pass
         else:
             logging.error("[{}] {}Something went wrong while updating {}.".format(
                 pip, COLOR.format(BOLD, RED), pkg, pip))

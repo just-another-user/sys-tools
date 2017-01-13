@@ -20,8 +20,8 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.204'
-__last_updated__ = '21/12/2016'
+__version__ = '1.205'
+__last_updated__ = '13/01/2017'
 __author__ = 'just-another-user'
 
 
@@ -37,7 +37,7 @@ NORMAL, BOLD, UNDERLINED = range(3)
 # **********************************************************************
 
 
-def get_nix_paths():
+def get_nix_paths():        # pragma: no cover
     """
     Find the pip executables in *nix systems by searching known installation paths.
     :return list: All pip executables found.
@@ -85,7 +85,7 @@ def get_nix_paths():
     return pip_paths
 
 
-def get_win_paths():
+def get_win_paths():        # pragma: no cover
     """
     Find the pip executables in Windows systems by searching known installation paths.
     :return list: All pip executables found.
@@ -138,7 +138,7 @@ def get_pip_paths():        # pragma: no cover
     # More os support <should come here>.
 
 
-class Pip(object):
+class Pip(object):          # pragma: no cover
     """
     Work in progress.
     The objective is to make every available pip a class.
@@ -175,7 +175,7 @@ def list_outdated_packages(pip):
     packs = []
     if outdated_packages:
         # noinspection PyTypeChecker
-        packs = [pkg.split()[0] for pkg in outdated_packages.decode('utf-8').split('\n')
+        packs = [pkg.split()[0].lower() for pkg in outdated_packages.decode('utf-8').split('\n')
                  if pkg.split() and pkg.split()[0]]
 
     return packs
@@ -307,8 +307,8 @@ def create_argparser():     # pragma: no cover
                         type=str, help="Update outdated packages using just these pip executables (at least one).")
 
     parser.add_argument("-i", "--ignore-packages", metavar="PACKAGE", dest="ignore_packages", nargs="+",
-                        action="store", type=str,
-                        help="Update outdated packages using just these pip executables (at least one).")
+                        action="store", type=str.lower,
+                        help="Update all out-of-date packages, except for these ones (at least one).")
 
     return parser.parse_args()
 
@@ -364,7 +364,6 @@ def pipdate():
     # Remove user specified packages from the list of packages to update.
     if arguments.ignore_packages:
         logging.debug("Ignoring the following packages: {}".format(arguments.ignore_packages))
-        packages = [pkg for pkg in packages[::] if pkg not in arguments.ignore_package]
 
     for current_pip in pips:
 
@@ -378,6 +377,8 @@ def pipdate():
             logging.info("[{}{}] {}No outdated packages found!".format(
                 COLOR.format(NORMAL, BLUE), current_pip, COLOR.format(NORMAL, YELLOW)))
         else:
+            # Remove ignored packages from update list.
+            packages_to_update = [pkg for pkg in packages_to_update if pkg not in arguments.ignore_packages]
             if 'pip' in packages_to_update and not packages_to_update.index('pip') == 0:
                 # Move pip to the front of the list so all further packages will be installed using
                 # the newer version.

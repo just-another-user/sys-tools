@@ -7,8 +7,8 @@ from pipdate import *
 import unittest2 as unittest
 import pytest
 
-__version__ = '1.08'
-__last_updated__ = '18/12/2016'
+__version__ = '1.09'
+__last_updated__ = '13/01/2017'
 __author__ = 'just-another-user'
 
 
@@ -79,7 +79,7 @@ class ListOutdatedPackagesTestSuite(unittest.TestCase):
                         b"Pygments (2.1.3)\n" \
                         b"pygobject (3.20.0)\n" \
                         b"PyJWT (1.4.0)\n"
-    outdated_packages_expected_result = [pkg.split()[0] for pkg in outdated_packages.decode('utf-8').split('\n')
+    outdated_packages_expected_result = [pkg.split()[0].lower() for pkg in outdated_packages.decode('utf-8').split('\n')
                                          if pkg.split() and pkg.split()[0]]
 
     @mock.patch('pipdate.subprocess.Popen')
@@ -283,7 +283,7 @@ class BatchUpdatePackagesTestSuite(unittest.TestCase):
         mock_update_package.return_value = 1
         expected_message = "[pip] package already up-to-date."
         batch_update_packages('pip', ['package'])
-        mock_logging.warning.assert_called_with(expected_message)
+        mock_logging.info.assert_called_with(expected_message)
 
     @mock.patch('pipdate.logging')
     @mock.patch('pipdate.update_package')

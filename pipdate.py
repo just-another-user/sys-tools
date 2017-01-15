@@ -20,8 +20,8 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.205'
-__last_updated__ = '13/01/2017'
+__version__ = '1.206'
+__last_updated__ = '15/01/2017'
 __author__ = 'just-another-user'
 
 
@@ -164,7 +164,7 @@ def list_outdated_packages(pip):
         outdated_packages = subprocess.Popen([pip, "list", "--outdated"],
                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
     except KeyboardInterrupt:
-        logging.warning("[{0}] User pressed ctrl+c. Skipping this version...".format(pip))
+        logging.warning("[{0}] Ctrl+c Detected; Skipping this version...".format(pip))
         return []
     except Exception as exp:
         logging.error("[{}] Exception encountered while listing outdated packages. {}".format(pip, exp))
@@ -307,7 +307,7 @@ def create_argparser():     # pragma: no cover
                         type=str, help="Update outdated packages using just these pip executables (at least one).")
 
     parser.add_argument("-i", "--ignore-packages", metavar="PACKAGE", dest="ignore_packages", nargs="+",
-                        action="store", type=str.lower,
+                        action="store", type=str.lower, default=[],
                         help="Update all out-of-date packages, except for these ones (at least one).")
 
     return parser.parse_args()
@@ -326,6 +326,7 @@ def pipdate():
 
     logging.info("pipdate v{}".format(__version__))
     logging.info("")
+    logging.info("ignore_packages: {}".format(arguments.ignore_packages))
 
     # Set OS dependent paths to the pip script.
     pips = get_pip_paths() if not arguments.just_these_pips else [pip for pip in arguments.just_these_pips

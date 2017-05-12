@@ -17,11 +17,11 @@ except:
     from ttk import *
     # noinspection PyUnresolvedReferences,PyPep8Naming
     from tkFileDialog import askopenfilenames
-from pipdate import *
+from pipdate import get_pip_paths, list_outdated_packages, batch_update_packages, __version__ as _ver
 from threading import Thread
 
 
-__version__ = '1.0'
+__version__ = '1.01'
 __last_updated__ = "12/05/2017"
 __author__ = 'just-another-user'
 
@@ -34,7 +34,6 @@ class PipdateGui(Frame):
         self.parent = parent
         self.parent.title("Pipdate GUI v{}".format(__version__))
         self.available_pips = get_pip_paths()
-        self.pips_dict = {}
         self.loading_label = Frame(self.parent)
         if self.available_pips:
             self.init_ui()
@@ -63,6 +62,11 @@ class PipdateGui(Frame):
         self.loading_label = Frame(self.parent)
         Label(self.loading_label, text=msg, font=("Fixedsys", 12)).pack()
         self.loading_label.grid(column=0, row=1)
+
+    def get_executables(self):
+        self.available_pips = get_pip_paths()
+        self.available_pips_drop_down_list.destroy()
+        self.create_available_pips_drop_down_menu()
 
     def create_available_pips_drop_down_menu(self):
         # Add "Available Pips" drop down list.
@@ -108,6 +112,7 @@ class PipdateGui(Frame):
         executables_menu = Menu(menu, tearoff=0)
         executables_menu.add_command(label="Add pip executable(s)", command=self.add_executables)
         executables_menu.add_command(label="Replace all pip executable(s)", command=self.replace_executables)
+        executables_menu.add_command(label="Search for pip executables...", command=self.get_executables)
         menu.add_cascade(label="Manage Executables", menu=executables_menu)
         menu.add_command(label="About...", command=self.about_menu)
 
@@ -131,11 +136,12 @@ class PipdateGui(Frame):
     def about_menu():
         win = Toplevel()
         win.title("About pipdate")
-        Label(win, text="pipdate v{}".format(__version__), font=("Fixedsys", 20)).pack()
-        Label(win, text="Created by {}".format(__author__), font=("Fixedsys", 15)).pack()
+        Label(win, text="gpipdate v{}".format(__version__), font=("Fixedsys", 30)).pack()
+        Label(win, text="GUI for pipdate v{}".format(_ver), font=("Fixedsys", 15)).pack()
+        Label(win, text="by {}".format(__author__), font=("Fixedsys", 15)).pack()
         Label(win, text="Last updated:  {}".format(__last_updated__), font=("Fixedsys", 15)).pack()
 
-    def update_message_board(self, event=None, msg=None):
+    def update_message_board(self, msg=None, *args):
         if msg is None:
             self.message_board_text.set("{} package(s) selected".format(
                 len(self.outdated_packages_listbox.curselection())))
@@ -177,9 +183,10 @@ class PipdateGui(Frame):
                 packages = [packages]
             update_successful = batch_update_packages(self.selected_pip.get(), packages)
             if update_successful:
-                self.update_message_board(msg="Package(s) updated successfully.")
+                msg = "Package(s) updated successfully."
             else:
-                self.update_message_board(msg="Some packages failed to update.")
+                msg = "Some packages failed to update."
+            self.update_message_board(msg=msg)
             self.update_pip_outdated_listbox()
 
 

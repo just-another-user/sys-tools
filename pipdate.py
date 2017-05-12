@@ -20,18 +20,18 @@ import sys
 import ctypes
 from string import ascii_uppercase
 
-__version__ = '1.206'
-__last_updated__ = '15/01/2017'
+__version__ = '1.207'
+__last_updated__ = '12/05/2017'
 __author__ = 'just-another-user'
 
 
 # TODO: - Implement timeout functionality.
 
 # **********************************************************************
-# Initiated global vars and logger.
-nix = True if os.name == 'posix' else False
+# Set globals
+NIX = True if os.name == 'posix' else False
 
-COLOR = '\x1b[{};{}m' if nix else ''
+COLOR = '\x1b[{};{}m' if NIX else ''
 BLACK, RED, GREEN, YELLOW, BLUE, PURPLE, CYAN, WHITE = range(30, 38)
 NORMAL, BOLD, UNDERLINED = range(3)
 # **********************************************************************
@@ -45,14 +45,11 @@ def get_nix_paths():        # pragma: no cover
     def is_float(num):
         """
         Check if a string is a float.
-        :param num: The string to test.
-        :type num: str
-        :return: True if string is a float; False otherwise
-        :rtype: bool
+        :param str num: The string to test.
+        :return bool: True if string is a float; False otherwise
         """
         try:
-            assert isinstance(float(num), float)
-            return True
+            return isinstance(float(num), float)
         except:
             return False
 
@@ -126,7 +123,7 @@ def get_pip_paths():        # pragma: no cover
     :return list: Available paths according to discovered system; Empty list if running on an unsupported system.
     """
 
-    if nix:
+    if NIX:
         return get_nix_paths()
     elif 'nt' in os.name:
         return get_win_paths()
@@ -155,7 +152,7 @@ def list_outdated_packages(pip):
     """
     Get a list of outdated pip packages.
     :param str pip: Path to the pip script.
-    :return list: Outdated Python packages.
+    :return list: Outdated Python packages if any exist; empty list otherwise
     """
     # Run the command and put output in tmp_packs
     logging.debug("[{0}] Running {0} list --outdated".format(pip))
@@ -164,7 +161,7 @@ def list_outdated_packages(pip):
         outdated_packages = subprocess.Popen([pip, "list", "--outdated"],
                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
     except KeyboardInterrupt:
-        logging.warning("[{0}] Ctrl+c Detected; Skipping this version...".format(pip))
+        logging.warning("[{0}] Ctrl+c detected; Skipping this version...".format(pip))
         return []
     except Exception as exp:
         logging.error("[{}] Exception encountered while listing outdated packages. {}".format(pip, exp))
@@ -184,7 +181,7 @@ def list_outdated_packages(pip):
 def update_package(pip, package):
     """
     Update a pip package.
-    :param str pip: The path to pip executable.
+    :param str pip: The path to the pip executable.
     :param str package: Name of the package to update.
     :return int: 0 successfully updated package,
                  1 if package already up to date,
@@ -194,13 +191,13 @@ def update_package(pip, package):
     """
     update_command = [pip, "install", "-U", package]
 
-    if nix:  # Add 'sudo -i' if running on a *nix system.
+    if NIX:  # Add 'sudo -i' if running on a *nix system.
         update_command = ['sudo', '-i'] + update_command
     try:
         update_process = subprocess.Popen(update_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         return_code = update_process.wait()
     except KeyboardInterrupt:
-        logging.warning("[{}] User pressed ctrl+c. Skipping {}...".format(pip, package))
+        logging.warning("[{}] Ctrl+c detected; Skipping {}...".format(pip, package))
         return 4
     except Exception as exp:
         logging.error("[{}] An exception was raised while updating {}. {}".format(pip, package, exp))
@@ -231,7 +228,7 @@ def update_package(pip, package):
 def batch_update_packages(pip, pkg_list):
     """
     Update one or more pip packages.
-    :param str pip: The path to pip executable.
+    :param str pip: The path to the pip executable.
     :param list pkg_list: Names of packages to update.
     :return bool: True if successfully iterated over all the packages; False otherwise.
     """
@@ -326,9 +323,10 @@ def pipdate():
 
     logging.info("pipdate v{}".format(__version__))
     logging.info("")
-    logging.info("ignore_packages: {}".format(arguments.ignore_packages))
+    if arguments.ignore_packages:
+        logging.info("ignore_packages: {}".format(arguments.ignore_packages))
 
-    # Set OS dependent paths to the pip script.
+    # Set OS dependent paths to the pip scripts.
     pips = get_pip_paths() if not arguments.just_these_pips else [pip for pip in arguments.just_these_pips
                                                                   if os.path.isfile(pip)]
 

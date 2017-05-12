@@ -18,7 +18,7 @@ from pipdate import *
 from threading import Thread
 
 
-__version__ = '0.22'
+__version__ = '0.23'
 __last_updated__ = "12/05/2017"
 __author__ = 'just-another-user'
 
@@ -32,32 +32,43 @@ class PipdateGui(Frame):
         self.parent.title("Pipdate GUI v{}".format(__version__))
         self.available_pips = get_pip_paths()
         self.pips_dict = {}
+        self.loading_label = Frame(self.parent)
         if self.available_pips:
             self.init_ui()
         else:
-            pass    # TODO: Popup which says "No pip executables found"
+            self.display_loading_label("No pip executables found...")
 
     def refresh_outdated(self):
         """
         Refresh the outdated packages listbox.
         Should be running in a different thread.
         """
+        self.display_loading_label("Retrieving outdated packages...")
+
         outdated_packages = list_outdated_packages(self.selected_pip.get())
         self.outdated_packages_listbox.destroy()
         self.outdated_packages_listbox = Listbox(self.parent, selectmode='multiple')
+        self.loading_label.destroy()
         if outdated_packages:
             for item in outdated_packages:
                 self.outdated_packages_listbox.insert(END, item)
         else:
-            self.outdated_packages_listbox.insert(END, "All up-to-date :)")
+            self.display_loading_label("All up-to-date :)")
         self.outdated_packages_listbox.grid(column=0, row=1, sticky=(W, E))
+
+    def display_loading_label(self, msg):
+        self.loading_label = Frame(self.parent)
+        Label(self.loading_label, text=msg).pack()
+        self.loading_label.grid(column=0, row=1)
 
     def init_ui(self):
         # Add "Available Pips" drop down list.
         self.selected_pip = StringVar(value=self.available_pips[-1])
         self.available_pips_drop_down_list = OptionMenu(self.parent, self.selected_pip,
                                                         self.selected_pip.get(), *self.available_pips)
-        self.available_pips_drop_down_list.config(width=len(max(self.available_pips, key=len)))
+        max_pip_len = len(max(self.available_pips, key=len))
+        max_pip_len = max_pip_len if max_pip_len >= 30 else 30
+        self.available_pips_drop_down_list.config(width=max_pip_len)
         self.selected_pip.trace("w", self.update_pip_outdated_listbox)
         self.available_pips_drop_down_list.grid(column=0, row=0, sticky=(W, E))
 
@@ -71,19 +82,16 @@ class PipdateGui(Frame):
         buttons_frame.grid(column=1, row=1, sticky=NW)
 
         Button(buttons_frame, text="Select All Packages", command=self.select_all_packages).pack(expand=1, fill='both')
-
         Button(buttons_frame, text="Clear All Selections", command=self.clear_selections).pack(expand=1, fill='both')
-
         Button(buttons_frame, text="Update Selected Packages",
                command=self.update_selected_packages).pack(expand=1, fill='both')
 
-        Button(buttons_frame, text="Quit", command=sys.exit).pack(expand=1, fill='both')
+        Button(buttons_frame, text="Quit", command=self.master.destroy).pack(expand=1, fill='both')
 
         # Add 'message board' on which messages to the user will be displayed.
         self.message_board_text = StringVar()
-        self.message_board = Label(self.parent, textvariable=self.message_board_text)
-        self.message_board.grid(column=0, row=4, sticky=(N, W), columnspan=2, pady=5)
-
+        self.message_board = Label(self.parent, textvariable=self.message_board_text, relief=SUNKEN, borderwidth=1)
+        self.message_board.grid(column=0, row=4, sticky=(N, W, E, S), columnspan=2, pady=5)
         self.outdated_packages_listbox.bind("<<ListboxSelect>>", self.update_message_board)
 
     def update_message_board(self, event=None, msg=None):
@@ -107,10 +115,6 @@ class PipdateGui(Frame):
         self.update_message_board()
 
     def update_pip_outdated_listbox(self, *args, **kwargs):
-        self.outdated_packages_listbox.destroy()
-        self.outdated_packages_listbox = Listbox(self.parent, selectmode='multiple')
-        self.outdated_packages_listbox.insert(END, "Retrieving outdated packages...")
-        self.outdated_packages_listbox.grid(column=0, row=1, sticky=(W, E))
         Thread(target=self.refresh_outdated).start()
 
     def update_selected_packages(self):
@@ -133,6 +137,8 @@ class PipdateGui(Frame):
             self.update_message_board(msg="No package selected.")
 
     def update_selected_packages_(self, packages):
+            if not isinstance(packages, list):
+                packages = [packages]
             update_successful = batch_update_packages(self.selected_pip.get(), packages)
             if update_successful:
                 self.notify(msg="Package(s) updated successfully.")

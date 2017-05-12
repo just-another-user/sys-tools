@@ -9,16 +9,19 @@ try:
     from tkinter import *
     # noinspection PyUnresolvedReferences
     from tkinter.ttk import *
+    from tkinter.filedialog import askopenfilenames
 except:
     # noinspection PyUnresolvedReferences
     from Tkinter import *
     # noinspection PyUnresolvedReferences
     from ttk import *
+    # noinspection PyUnresolvedReferences,PyPep8Naming
+    from tkFileDialog import askopenfilenames
 from pipdate import *
 from threading import Thread
 
 
-__version__ = '0.23'
+__version__ = '1.0'
 __last_updated__ = "12/05/2017"
 __author__ = 'just-another-user'
 
@@ -58,10 +61,10 @@ class PipdateGui(Frame):
 
     def display_loading_label(self, msg):
         self.loading_label = Frame(self.parent)
-        Label(self.loading_label, text=msg).pack()
+        Label(self.loading_label, text=msg, font=("Fixedsys", 12)).pack()
         self.loading_label.grid(column=0, row=1)
 
-    def init_ui(self):
+    def create_available_pips_drop_down_menu(self):
         # Add "Available Pips" drop down list.
         self.selected_pip = StringVar(value=self.available_pips[-1])
         self.available_pips_drop_down_list = OptionMenu(self.parent, self.selected_pip,
@@ -71,6 +74,9 @@ class PipdateGui(Frame):
         self.available_pips_drop_down_list.config(width=max_pip_len)
         self.selected_pip.trace("w", self.update_pip_outdated_listbox)
         self.available_pips_drop_down_list.grid(column=0, row=0, sticky=(W, E))
+
+    def init_ui(self):
+        self.create_available_pips_drop_down_menu()
 
         # Add "Outdated Packages Listbox for Chosen Pip" listbox.
         self.outdated_packages_listbox = Listbox(self.parent, selectmode='multiple')
@@ -94,17 +100,47 @@ class PipdateGui(Frame):
         self.message_board.grid(column=0, row=4, sticky=(N, W, E, S), columnspan=2, pady=5)
         self.outdated_packages_listbox.bind("<<ListboxSelect>>", self.update_message_board)
 
+        self.init_menu()
+
+    def init_menu(self):
+        menu = Menu(self.master)
+
+        executables_menu = Menu(menu, tearoff=0)
+        executables_menu.add_command(label="Add pip executable(s)", command=self.add_executables)
+        executables_menu.add_command(label="Replace all pip executable(s)", command=self.replace_executables)
+        menu.add_cascade(label="Manage Executables", menu=executables_menu)
+        menu.add_command(label="About...", command=self.about_menu)
+
+        self.master.config(menu=menu)
+
+    def replace_executables(self):
+        self.add_executables(replace=True)
+
+    def add_executables(self, replace=False):
+        pips = askopenfilenames(title="Choose the pip executable(s) to be used")
+        print("Pip: {}".format(pips))
+        if pips:
+            if replace:
+                self.available_pips = list(pips)
+            else:
+                self.available_pips.extend(pips)
+            self.available_pips_drop_down_list.destroy()
+            self.create_available_pips_drop_down_menu()
+
+    @staticmethod
+    def about_menu():
+        win = Toplevel()
+        win.title("About pipdate")
+        Label(win, text="pipdate v{}".format(__version__), font=("Fixedsys", 20)).pack()
+        Label(win, text="Created by {}".format(__author__), font=("Fixedsys", 15)).pack()
+        Label(win, text="Last updated:  {}".format(__last_updated__), font=("Fixedsys", 15)).pack()
+
     def update_message_board(self, event=None, msg=None):
         if msg is None:
             self.message_board_text.set("{} package(s) selected".format(
                 len(self.outdated_packages_listbox.curselection())))
         else:
             self.message_board_text.set(str(msg))
-
-    def notify(self, msg=None):
-        if msg is None:
-            msg = "Notification alert"
-        self.update_message_board(msg=str(msg))
 
     def select_all_packages(self):
         self.outdated_packages_listbox.select_set(0, END)
@@ -141,9 +177,9 @@ class PipdateGui(Frame):
                 packages = [packages]
             update_successful = batch_update_packages(self.selected_pip.get(), packages)
             if update_successful:
-                self.notify(msg="Package(s) updated successfully.")
+                self.update_message_board(msg="Package(s) updated successfully.")
             else:
-                self.notify(msg="Some packages failed to update.")
+                self.update_message_board(msg="Some packages failed to update.")
             self.update_pip_outdated_listbox()
 
 

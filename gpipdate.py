@@ -21,8 +21,8 @@ from pipdate import get_pip_paths, list_outdated_packages, batch_update_packages
 from threading import Thread
 
 
-__version__ = '1.01'
-__last_updated__ = "12/05/2017"
+__version__ = '1.02'
+__last_updated__ = "13/05/2017"
 __author__ = 'just-another-user'
 
 
@@ -162,24 +162,24 @@ class PipdateGui(Frame):
     def update_selected_packages(self):
         selected_packages = self.outdated_packages_listbox.curselection()
         if selected_packages:
-            selected_packages_printable_format = [self.outdated_packages_listbox.get(i) for i in selected_packages]
+            packages_list = [self.outdated_packages_listbox.get(i) for i in selected_packages]
             # Beautify display of packages names
             if len(selected_packages) == 1:
                 packages_names = str(self.outdated_packages_listbox.get(selected_packages[0]))
             elif len(selected_packages) == 2:
-                packages_names = " and ".join(selected_packages_printable_format)
+                packages_names = " and ".join(packages_list)
             else:
-                packages_names = ", ".join(selected_packages_printable_format[:-1] +
-                                           ["and {}".format(selected_packages_printable_format[-1])])
+                packages_names = ", ".join(packages_list[:-1] +
+                                           ["and {}".format(packages_list[-1])])
 
             self.update_message_board(msg="Updating {}".format(packages_names))
-            t = Thread(target=self.update_selected_packages_, args=selected_packages_printable_format)
+            t = Thread(target=self.update_selected_packages_, args=(packages_list,))
             t.start()
         else:
             self.update_message_board(msg="No package selected.")
 
     def update_selected_packages_(self, packages):
-            if not isinstance(packages, list):
+            if isinstance(packages, str):
                 packages = [packages]
             update_successful = batch_update_packages(self.selected_pip.get(), packages)
             if update_successful:

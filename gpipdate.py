@@ -19,10 +19,11 @@ except:
     from tkFileDialog import askopenfilenames
 from pipdate import get_pip_paths, list_outdated_packages, batch_update_packages, __version__ as _ver
 from threading import Thread
+from time import sleep
 
 
-__version__ = '1.02'
-__last_updated__ = "13/05/2017"
+__version__ = '1.03'
+__last_updated__ = "14/05/2017"
 __author__ = 'just-another-user'
 
 
@@ -45,9 +46,19 @@ class PipdateGui(Frame):
         Refresh the outdated packages listbox.
         Should be running in a different thread.
         """
-        self.display_loading_label("Retrieving outdated packages...")
+        # noinspection PyShadowingNames
+        def _list_outdated():
+            outdated_packages = list_outdated_packages(self.selected_pip.get())
 
-        outdated_packages = list_outdated_packages(self.selected_pip.get())
+        # Let the user know the process is running in the background by animating movement
+        outdated_packages = ""
+        t = Thread(target=_list_outdated)
+        t.start()
+        while t.is_alive():
+            for c in "/-\\|":
+                sleep(0.2)
+                self.display_loading_label("[{}] Retrieving outdated packages...".format(c))
+
         self.outdated_packages_listbox.destroy()
         self.outdated_packages_listbox = Listbox(self.parent, selectmode='multiple')
         self.loading_label.destroy()
@@ -92,7 +103,7 @@ class PipdateGui(Frame):
         buttons_frame.grid(column=1, row=1, sticky=NW)
 
         Button(buttons_frame, text="Select All Packages", command=self.select_all_packages).pack(expand=1, fill='both')
-        Button(buttons_frame, text="Clear All Selections", command=self.clear_selections).pack(expand=1, fill='both')
+        Button(buttons_frame, text="Clear Selections", command=self.clear_selections).pack(expand=1, fill='both')
         Button(buttons_frame, text="Update Selected Packages",
                command=self.update_selected_packages).pack(expand=1, fill='both')
 
@@ -122,7 +133,7 @@ class PipdateGui(Frame):
         self.add_executables(replace=True)
 
     def add_executables(self, replace=False):
-        pips = askopenfilenames(title="Choose the pip executable(s) to be used")
+        pips = askopenfilenames(title="Select the pip executable(s) to be used")
         print("Pip: {}".format(pips))
         if pips:
             if replace:
@@ -138,7 +149,7 @@ class PipdateGui(Frame):
         win.title("About pipdate")
         Label(win, text="gpipdate v{}".format(__version__), font=("Fixedsys", 30)).pack()
         Label(win, text="GUI for pipdate v{}".format(_ver), font=("Fixedsys", 15)).pack()
-        Label(win, text="by {}".format(__author__), font=("Fixedsys", 15)).pack()
+        Label(win, text="by {}".format(__author__), font=("Fixedsys", 11)).pack()
         Label(win, text="Last updated:  {}".format(__last_updated__), font=("Fixedsys", 15)).pack()
 
     def update_message_board(self, msg=None, *args):

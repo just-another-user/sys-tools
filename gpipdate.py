@@ -22,8 +22,8 @@ from threading import Thread
 from time import sleep
 
 
-__version__ = '1.05'
-__last_updated__ = "16/05/2017"
+__version__ = '1.06'
+__last_updated__ = "19/05/2017"
 __author__ = 'just-another-user'
 
 
@@ -36,6 +36,7 @@ class PipdateGui(Frame):
         self.parent.title("Pipdate GUI v{}".format(__version__))
         self.available_pips = get_pip_paths()
         self.loading_label = Frame(self.parent)
+        self.outdated_packages_for_current_pip = []
         if self.available_pips:
             self.init_ui()
         else:
@@ -193,7 +194,7 @@ class PipdateGui(Frame):
             """
             Thread worker to fetch outdated packages for the currently selected pip
             """
-            outdated_packages = list_outdated_packages(self.selected_pip.get())
+            self.outdated_packages_for_current_pip = list_outdated_packages(self.selected_pip.get())
 
         # Let the user know the process is running in the background by animating movement
         outdated_packages = ""
@@ -209,9 +210,9 @@ class PipdateGui(Frame):
         self.outdated_packages_listbox = Listbox(self.parent, selectmode='multiple')
         self.loading_label.destroy()
 
-        if outdated_packages:                                       # If there are outdated packages
-            for item in outdated_packages:                          # Populate the listbox with their names
-                self.outdated_packages_listbox.insert(END, item)
+        if self.outdated_packages_for_current_pip:              # If there are outdated packages
+            for _ in self.outdated_packages_for_current_pip:    # Populate the listbox with their names
+                self.outdated_packages_listbox.insert(END, self.outdated_packages_for_current_pip.pop(0))
         else:
             self.display_loading_label("All up-to-date :)")
         self.outdated_packages_listbox.grid(column=0, row=1, sticky=(W, E))
@@ -244,7 +245,7 @@ class PipdateGui(Frame):
                                            ["and {}".format(packages_list[-1])])
 
             self.update_status_bar(msg="Updating {}".format(packages_names))
-            Thread(target=self.update_selected_packages_, args=(packages_list,)).start()
+            Thread(target=update_selected_packages_, args=(packages_list,)).start()
         else:
             self.update_status_bar(msg="No package selected.")
 

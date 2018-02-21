@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ############################################# #
 #
-# install_tools.sh (v0.11)
+# install_tools.sh (v0.12)
 # by just-another-user
 #
 # Description:
@@ -17,8 +17,9 @@ sudo apt install -y python python3 python-dev python3-dev python-pip python3-pip
 
 sudo ln -snf `pwd`/aptdate /usr/local/bin/aptdate
 sudo chmod +x /usr/local/bin/aptdate
-sudo echo `which python3` `pwd`/pipdate.py \$\* > /usr/local/bin/pipdate
-sudo chmod +x /usr/local/bin/pipdate
+echo `which python3` `pwd`/pipdate.py \$\* > pipdate
+sudo chmod +x pipdate
+sudo mv ./pipdate /usr/local/bin/pipdate
 sudo ln -snf `pwd`/where /usr/local/bin/where
 sudo chmod +x /usr/local/bin/where
 

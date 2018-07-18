@@ -20,8 +20,8 @@ import argparse
 from subprocess import Popen, PIPE
 from string import ascii_uppercase
 
-__version__ = '1.31'
-__last_updated__ = '22/06/2018'
+__version__ = '1.32'
+__last_updated__ = '19/07/2018'
 __author__ = 'just-another-user'
 
 
@@ -90,8 +90,8 @@ def get_win_paths():        # pragma: no cover
     executables = []
     try:
         # First, add all available drives on the system to the available locations.
-        available_locations = [os.sep.join(["{0}:".format(drive)]) for drive in list(ascii_uppercase)
-                               if os.path.isdir(os.sep.join(['{0}:'.format(drive), ""]))]
+        available_locations = [os.sep.join(["{}:".format(drive)]) for drive in list(ascii_uppercase)
+                               if os.path.isdir(os.sep.join(['{}:'.format(drive), ""]))]
 
         # Then, add Program Files folders as possible locations:
         pf = ["Program Files", "Program Files (x86)", ]
@@ -167,7 +167,7 @@ def list_outdated_packages(python):
     try:
         outdated_packages = Popen([python, "-m", "pip", "list", "-o"], stdout=PIPE, stderr=PIPE).communicate()[0]
     except KeyboardInterrupt:
-        logging.warning("[{0}] Ctrl+c detected; Skipping this version...".format(python))
+        logging.warning("[{}] Keyboard interrupt detected; Skipping this version...".format(python))
         return []
     except Exception as exp:
         logging.error("[{}] Exception encountered while listing outdated packages. {}".format(python, exp))
@@ -204,7 +204,7 @@ def update_package(python, package):
         update_process = Popen(update_command, stdout=PIPE, stderr=PIPE)
         update_process.wait()
     except KeyboardInterrupt:
-        logging.warning("[{}] Ctrl+c detected; Skipping {}...".format(python, package))
+        logging.warning("[{}] Keyboard interrupt detected; Skipping {}...".format(python, package))
         return 4
     except Exception as exp:
         logging.error("[{}] An exception was raised while updating {}. {}".format(python, package, exp))
@@ -245,10 +245,14 @@ def batch_update_packages(python, pkg_list):
                                                                              " ".join(pkg_list)))
     for pkg in pkg_list:
         logging.info("[{}] Updating {}".format(python, pkg))
+        exception_raised = 'N/A'
         try:
             updated = update_package(python, pkg)
-        except Exception:
+        except KeyboardInterrupt:
+            updated = -2
+        except Exception as e:
             updated = -1
+            exception_raised = str(e)
         if updated == 0:
             logging.info("[{}] {}{}{} updated {}successfully.".format(
                 python, COLOR.format(BOLD, PURPLE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, GREEN)))
@@ -268,6 +272,12 @@ def batch_update_packages(python, pkg_list):
         elif updated == 5:
             logging.error("[{}] {}Cannot find a match for {}".format(
                 python, COLOR.format(NORMAL, RED), pkg))
+        elif updated == -1:
+            logging.error("[{}] {}An exception was raised: {}".format(
+                python, COLOR.format(NORMAL, RED), exception_raised))
+        elif updated == -2:
+            logging.error("[{}] {}Keyboard interrupt detected. Skipping package {}{}".format(
+                python, COLOR.format(NORMAL, RED), exception_raised, COLOR.format(NORMAL, PURPLE), pkg))
         else:
             logging.error("[{}] {}Something went wrong while updating {}.".format(
                 python, COLOR.format(BOLD, RED), pkg, python))
@@ -367,10 +377,6 @@ def pipdate():
 
     # User specified packages for update.
     packages = list(arguments.packages) if arguments.packages else []
-
-    # Remove user specified packages from the list of packages to update.
-    if arguments.ignore_packages:
-        logging.debug("Ignoring the following packages: {}".format(arguments.ignore_packages))
 
     for current_py in pythons:
 

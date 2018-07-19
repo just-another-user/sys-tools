@@ -7,8 +7,8 @@ from pipdate import *
 import unittest2 as unittest
 import pytest
 
-__version__ = '1.09'
-__last_updated__ = '13/01/2017'
+__version__ = '1.10'
+__last_updated__ = '19/05/2017'
 __author__ = 'just-another-user'
 
 
@@ -140,10 +140,10 @@ class ListOutdatedPackagesTestSuite(unittest.TestCase):
 class UpdatePackageTestSuite(unittest.TestCase):
     def setUp(self):
         # noinspection PyAttributeOutsideInit
-        self.original_state = update_package.__globals__["nix"]
+        self.original_state = update_package.__globals__["NIX"]
 
     def tearDown(self):
-        update_package.__globals__["nix"] = self.original_state
+        update_package.__globals__["NIX"] = self.original_state
 
     @mock.patch('pipdate.subprocess.Popen')
     def test_package_updated_successfully_return_0(self, mock_popen):
@@ -226,7 +226,7 @@ class UpdatePackageTestSuite(unittest.TestCase):
         """
         mock_popen.return_value.wait.return_value = 0
         mock_popen.return_value.communicate.return_value = (b"Successfully installed", b"")
-        update_package.__globals__["nix"] = True
+        update_package.__globals__["NIX"] = True
         self.assertEqual(0, update_package('pip', 'package'))
         mock_popen.assert_called_with(['sudo', '-i', 'pip', 'install', '-U', 'package'], stderr=-1, stdout=-1)
 

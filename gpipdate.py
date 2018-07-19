@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-gpipdate - Graphical Pipdate.
+gpipdate - GUI for pipdate.
 
 View and update all your outdated packages for each Python installation on your system.
 """
@@ -19,10 +19,11 @@ except:
     from tkFileDialog import askopenfilenames
 from pipdate import get_pip_paths, list_outdated_packages, batch_update_packages, __version__ as _ver
 from threading import Thread
+from time import sleep
 
 
-__version__ = '1.02'
-__last_updated__ = "13/05/2017"
+__version__ = '1.06'
+__last_updated__ = "19/05/2017"
 __author__ = 'just-another-user'
 
 
@@ -35,131 +36,202 @@ class PipdateGui(Frame):
         self.parent.title("Pipdate GUI v{}".format(__version__))
         self.available_pips = get_pip_paths()
         self.loading_label = Frame(self.parent)
+        self.outdated_packages_for_current_pip = []
         if self.available_pips:
             self.init_ui()
         else:
             self.display_loading_label("No pip executables found...")
 
-    def refresh_outdated(self):
-        """
-        Refresh the outdated packages listbox.
-        Should be running in a different thread.
-        """
-        self.display_loading_label("Retrieving outdated packages...")
-
-        outdated_packages = list_outdated_packages(self.selected_pip.get())
-        self.outdated_packages_listbox.destroy()
-        self.outdated_packages_listbox = Listbox(self.parent, selectmode='multiple')
-        self.loading_label.destroy()
-        if outdated_packages:
-            for item in outdated_packages:
-                self.outdated_packages_listbox.insert(END, item)
-        else:
-            self.display_loading_label("All up-to-date :)")
-        self.outdated_packages_listbox.grid(column=0, row=1, sticky=(W, E))
-
-    def display_loading_label(self, msg):
-        self.loading_label = Frame(self.parent)
-        Label(self.loading_label, text=msg, font=("Fixedsys", 12)).pack()
-        self.loading_label.grid(column=0, row=1)
-
-    def get_executables(self):
-        self.available_pips = get_pip_paths()
-        self.available_pips_drop_down_list.destroy()
-        self.create_available_pips_drop_down_menu()
-
-    def create_available_pips_drop_down_menu(self):
-        # Add "Available Pips" drop down list.
-        self.selected_pip = StringVar(value=self.available_pips[-1])
-        self.available_pips_drop_down_list = OptionMenu(self.parent, self.selected_pip,
-                                                        self.selected_pip.get(), *self.available_pips)
-        max_pip_len = len(max(self.available_pips, key=len))
-        max_pip_len = max_pip_len if max_pip_len >= 30 else 30
-        self.available_pips_drop_down_list.config(width=max_pip_len)
-        self.selected_pip.trace("w", self.update_pip_outdated_listbox)
-        self.available_pips_drop_down_list.grid(column=0, row=0, sticky=(W, E))
+    # UI, displays and menus
 
     def init_ui(self):
+        """
+        First initialization of the ui
+        """
+        # Once the available executables are known, the rest of the ui can be drawn
         self.create_available_pips_drop_down_menu()
 
-        # Add "Outdated Packages Listbox for Chosen Pip" listbox.
+        # Create an "Outdated Packages" listbox.
         self.outdated_packages_listbox = Listbox(self.parent, selectmode='multiple')
         self.outdated_packages_listbox.grid(column=0, row=1, sticky=(W, E), rowspan=3)
         self.update_pip_outdated_listbox()
 
-        # Add buttons
+        # Create selection buttons and the 'quit' button
         buttons_frame = Frame(self.parent)
         buttons_frame.grid(column=1, row=1, sticky=NW)
 
         Button(buttons_frame, text="Select All Packages", command=self.select_all_packages).pack(expand=1, fill='both')
-        Button(buttons_frame, text="Clear All Selections", command=self.clear_selections).pack(expand=1, fill='both')
+        Button(buttons_frame, text="Clear Selections", command=self.clear_selections).pack(expand=1, fill='both')
         Button(buttons_frame, text="Update Selected Packages",
                command=self.update_selected_packages).pack(expand=1, fill='both')
 
         Button(buttons_frame, text="Quit", command=self.master.destroy).pack(expand=1, fill='both')
 
-        # Add 'message board' on which messages to the user will be displayed.
-        self.message_board_text = StringVar()
-        self.message_board = Label(self.parent, textvariable=self.message_board_text, relief=SUNKEN, borderwidth=1)
-        self.message_board.grid(column=0, row=4, sticky=(N, W, E, S), columnspan=2, pady=5)
-        self.outdated_packages_listbox.bind("<<ListboxSelect>>", self.update_message_board)
+        # Add a status bar on which messages to the user will be displayed.
+        self.status_bar_text = StringVar()
+        self.status_bar = Label(self.parent, textvariable=self.status_bar_text, relief=SUNKEN, borderwidth=1)
+        self.status_bar.grid(column=0, row=4, sticky=(N, W, E, S), columnspan=2, pady=5)
+        self.outdated_packages_listbox.bind("<<ListboxSelect>>", self.update_status_bar)
 
         self.init_menu()
 
     def init_menu(self):
+        """
+        Create a menu bar
+        """
         menu = Menu(self.master)
 
+        # Functions which add, find or replace executables
         executables_menu = Menu(menu, tearoff=0)
         executables_menu.add_command(label="Add pip executable(s)", command=self.add_executables)
         executables_menu.add_command(label="Replace all pip executable(s)", command=self.replace_executables)
         executables_menu.add_command(label="Search for pip executables...", command=self.get_executables)
         menu.add_cascade(label="Manage Executables", menu=executables_menu)
+
+        # Create an About button in the menu
         menu.add_command(label="About...", command=self.about_menu)
 
         self.master.config(menu=menu)
 
-    def replace_executables(self):
-        self.add_executables(replace=True)
+    @staticmethod
+    def about_menu():
+        """
+        Display a popup with relevant details
+        """
+        win = Toplevel()
+        win.title("About pipdate")
+        Label(win, text="gpipdate v{}".format(__version__), font=("Fixedsys", 30)).pack()
+        Label(win, text="GUI for pipdate v{}".format(_ver), font=("Fixedsys", 15)).pack()
+        Label(win, text="by {}".format(__author__), font=("Fixedsys", 11)).pack()
+        Label(win, text="Last updated:  {}".format(__last_updated__), font=("Fixedsys", 8)).pack()
+
+    def create_available_pips_drop_down_menu(self):
+        self.selected_pip = StringVar(value=self.available_pips[-1])    # Arbitrarily pick the last as default
+        self.available_pips_drop_down_list = OptionMenu(self.parent, self.selected_pip,
+                                                        self.selected_pip.get(), *self.available_pips)
+
+        # Set a minimum width for the drop down list to avoid getting a small column on short paths like /bin/pip
+        max_pip_len = len(max(self.available_pips, key=len))
+        max_pip_len = max_pip_len if max_pip_len >= 30 else 30          # 30 is arbitrary
+        self.available_pips_drop_down_list.config(width=max_pip_len)
+
+        self.selected_pip.trace("w", self.update_pip_outdated_listbox)  # Bind variable changes to refreshing the list
+        self.available_pips_drop_down_list.grid(column=0, row=0, sticky=(W, E))
+
+    def update_status_bar(self, msg=None, *args):
+        """
+        Wrapper for handling status bar updates, including a 'packages selected' template, 
+        to be used when no text is given.
+        """
+        if msg is None:     # When no msg is given, use the default template
+            self.status_bar_text.set("{} package(s) selected".format(
+                len(self.outdated_packages_listbox.curselection())))
+        else:
+            self.status_bar_text.set(str(msg))
+
+    def display_loading_label(self, msg):
+        """
+        Wrapper for displaying a loading message
+        """
+        self.loading_label = Frame(self.parent)
+        Label(self.loading_label, text=msg, font=("Fixedsys", 12)).pack()
+        self.loading_label.grid(column=0, row=1)
+
+    # Executables actions
+
+    def get_executables(self):
+        """
+        Overwrite the available_pips variable with executables found using the get_pip_paths function
+        and re-draw the drop down menu
+        """
+        self.available_pips = get_pip_paths()
+        self.available_pips_drop_down_list.destroy()
+        self.create_available_pips_drop_down_menu()
 
     def add_executables(self, replace=False):
-        pips = askopenfilenames(title="Choose the pip executable(s) to be used")
+        """
+        Add executables to the drop down menu
+        """
+        pips = askopenfilenames(title="Select the pip executable(s) to be used")
         print("Pip: {}".format(pips))
         if pips:
             if replace:
                 self.available_pips = list(pips)
             else:
                 self.available_pips.extend(pips)
+
+            # Refresh the available pips drop down menu
             self.available_pips_drop_down_list.destroy()
             self.create_available_pips_drop_down_menu()
 
-    @staticmethod
-    def about_menu():
-        win = Toplevel()
-        win.title("About pipdate")
-        Label(win, text="gpipdate v{}".format(__version__), font=("Fixedsys", 30)).pack()
-        Label(win, text="GUI for pipdate v{}".format(_ver), font=("Fixedsys", 15)).pack()
-        Label(win, text="by {}".format(__author__), font=("Fixedsys", 15)).pack()
-        Label(win, text="Last updated:  {}".format(__last_updated__), font=("Fixedsys", 15)).pack()
+    def replace_executables(self):
+        """
+        Replace executable in drop down menu
+        """
+        self.add_executables(replace=True)
 
-    def update_message_board(self, msg=None, *args):
-        if msg is None:
-            self.message_board_text.set("{} package(s) selected".format(
-                len(self.outdated_packages_listbox.curselection())))
-        else:
-            self.message_board_text.set(str(msg))
+    # List actions
 
     def select_all_packages(self):
         self.outdated_packages_listbox.select_set(0, END)
-        self.update_message_board()
 
     def clear_selections(self):
         self.outdated_packages_listbox.selection_clear(0, END)
-        self.update_message_board()
 
     def update_pip_outdated_listbox(self, *args, **kwargs):
-        Thread(target=self.refresh_outdated).start()
+        """ 
+        Start a threaded worker to refresh outdated packages
+        """
+        Thread(target=self.refresh_outdated_).start()
+
+    def refresh_outdated_(self):
+        """
+        Refresh the outdated packages listbox.
+        Should be running in a different thread.
+        """
+        # noinspection PyShadowingNames
+        def list_outdated_():
+            """
+            Thread worker to fetch outdated packages for the currently selected pip
+            """
+            self.outdated_packages_for_current_pip = list_outdated_packages(self.selected_pip.get())
+
+        # Let the user know the process is running in the background by animating movement
+        outdated_packages = ""
+        t = Thread(target=list_outdated_)
+        t.start()
+        while t.is_alive():
+            for c in "/-\\|":   # Spinners are all the craze these days...
+                sleep(0.1)
+                self.display_loading_label("-{}- Retrieving outdated packages...".format(c))
+
+        # Recreate the listbox and remove the loading message
+        self.outdated_packages_listbox.destroy()
+        self.outdated_packages_listbox = Listbox(self.parent, selectmode='multiple')
+        self.loading_label.destroy()
+
+        if self.outdated_packages_for_current_pip:              # If there are outdated packages
+            for _ in self.outdated_packages_for_current_pip:    # Populate the listbox with their names
+                self.outdated_packages_listbox.insert(END, self.outdated_packages_for_current_pip.pop(0))
+        else:
+            self.display_loading_label("All up-to-date :)")
+        self.outdated_packages_listbox.grid(column=0, row=1, sticky=(W, E))
 
     def update_selected_packages(self):
+        def update_selected_packages_(packages):
+            """
+            Update all selected packages and report results to status bar
+            """
+            if isinstance(packages, str):
+                packages = [packages]
+            update_successful = batch_update_packages(self.selected_pip.get(), packages)
+            if update_successful:
+                msg = "Package(s) updated successfully."
+            else:
+                msg = "Some packages failed to update."
+            self.update_status_bar(msg=msg)
+            self.update_pip_outdated_listbox()
+
         selected_packages = self.outdated_packages_listbox.curselection()
         if selected_packages:
             packages_list = [self.outdated_packages_listbox.get(i) for i in selected_packages]
@@ -172,30 +244,14 @@ class PipdateGui(Frame):
                 packages_names = ", ".join(packages_list[:-1] +
                                            ["and {}".format(packages_list[-1])])
 
-            self.update_message_board(msg="Updating {}".format(packages_names))
-            t = Thread(target=self.update_selected_packages_, args=(packages_list,))
-            t.start()
+            self.update_status_bar(msg="Updating {}".format(packages_names))
+            Thread(target=update_selected_packages_, args=(packages_list,)).start()
         else:
-            self.update_message_board(msg="No package selected.")
-
-    def update_selected_packages_(self, packages):
-            if isinstance(packages, str):
-                packages = [packages]
-            update_successful = batch_update_packages(self.selected_pip.get(), packages)
-            if update_successful:
-                msg = "Package(s) updated successfully."
-            else:
-                msg = "Some packages failed to update."
-            self.update_message_board(msg=msg)
-            self.update_pip_outdated_listbox()
+            self.update_status_bar(msg="No package selected.")
 
 
-def main():
+if __name__ == '__main__':
     root = Tk()
     root.resizable(0, 0)
     PipdateGui(root)
     root.mainloop()
-
-
-if __name__ == '__main__':
-    main()

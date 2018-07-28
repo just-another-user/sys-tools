@@ -20,12 +20,10 @@ import argparse
 from subprocess import Popen, PIPE
 from string import ascii_uppercase
 
-__version__ = '1.32'
-__last_updated__ = '19/07/2018'
+__version__ = '1.33'
+__last_updated__ = '28/07/2018'
 __author__ = 'just-another-user'
 
-
-# TODO: - Implement timeout functionality.
 
 # **********************************************************************
 # Set globals
@@ -60,11 +58,11 @@ def get_nix_paths():        # pragma: no cover
     for path in known_nix_paths:
         _, _, files = next(os.walk(path))
         # Get all files which start with python.
-        py_paths += [os.sep.join([path, _file]) for _file in files
-                     if _file.lower().startswith('python')
-                     and is_float(_file[6:])
-                     and os.path.isfile(os.sep.join([path, _file]))
-                     and os.sep.join([path, _file]) not in py_paths]
+        py_paths += [os.sep.join([path, file_]) for file_ in files
+                     if file_.lower().startswith('python')
+                     and is_float(file_[6:])
+                     and os.path.isfile(os.sep.join([path, file_]))
+                     and os.sep.join([path, file_]) not in py_paths]
 
     # ***
     # In *nix systems there might be a couple of files referencing the same files:
@@ -74,8 +72,8 @@ def get_nix_paths():        # pragma: no cover
     #  Iterate over a *copy* of the list so that it could be manipulated as well.
     py_paths = sorted(list(set(py_paths[::])))
     for py in py_paths[::]:
-        for _py in py_paths[py_paths.index(py) + 1:]:
-            if not py == _py and py.split(os.sep)[-1] in _py.split(os.sep)[-1]:
+        for py_ in py_paths[py_paths.index(py) + 1:]:
+            if not py == py_ and py.split(os.sep)[-1] in py_.split(os.sep)[-1]:
                 py_paths.remove(py)
                 break
 
@@ -95,8 +93,8 @@ def get_win_paths():        # pragma: no cover
 
         # Then, add Program Files folders as possible locations:
         pf = ["Program Files", "Program Files (x86)", ]
-        available_locations += [os.sep.join([drive, _pf]) for drive in available_locations for _pf in pf if
-                                os.path.isdir(os.sep.join([drive, _pf]))]
+        available_locations += [os.sep.join([drive, pf_]) for drive in available_locations for pf_ in pf if
+                                os.path.isdir(os.sep.join([drive, pf_]))]
 
         # Now add specific locations:
         specific_locations = [os.sep.join([os.environ["LOCALAPPDATA"], "Programs", "Python"])]
@@ -106,8 +104,8 @@ def get_win_paths():        # pragma: no cover
         # python executable
         for path in available_locations:
             _, dirs, _ = next(os.walk(path + os.sep))  # Get only the folders directly under the searched path.
-            for _dir in [a_dir for a_dir in dirs if 'python' in a_dir.lower()]:
-                python_file = os.sep.join([path, _dir, "python.exe"])
+            for dir_ in [py_dir for py_dir in dirs if 'python' in py_dir.lower()]:
+                python_file = os.sep.join([path, dir_, "python.exe"])
                 if os.path.isfile(python_file):
                     executables.append(python_file)
     except Exception as exp:
@@ -253,6 +251,7 @@ def batch_update_packages(python, pkg_list):
         except Exception as e:
             updated = -1
             exception_raised = str(e)
+
         if updated == 0:
             logging.info("[{}] {}{}{} updated {}successfully.".format(
                 python, COLOR.format(BOLD, PURPLE), pkg, COLOR.format(NORMAL, WHITE), COLOR.format(NORMAL, GREEN)))
